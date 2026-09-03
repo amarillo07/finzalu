@@ -13,8 +13,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["icons/icon-192.png", "icons/icon-512.png"],
       manifest: {
-        name: "Finanzas MX",
-        short_name: "Finanzas MX",
+        name: "Finzalu",
+        short_name: "Finzalu",
         description: "Control de gastos e ingresos personales, reglas financieras y metas de ahorro.",
         theme_color: "#131B29",
         background_color: "#131B29",
