@@ -6,7 +6,7 @@ import { VitePWA } from "vite-plugin-pwa";
 //   https://github.com/tuusuario/finanzas-mx  ->  base: "/finanzas-mx/"
 // If you deploy to a "tuusuario.github.io" repo (user/organization site), use base: "/"
 export default defineConfig({
-  base: "/finzalu/",
+  base: "/Finzalu/",
   plugins: [
     react(),
     VitePWA({
