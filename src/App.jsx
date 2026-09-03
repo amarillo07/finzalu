@@ -14,7 +14,11 @@ import {
   Smartphone, Tv, Gamepad2, Dumbbell, Scissors, Building2, CreditCard,
   Music, Camera, ShoppingBasket, Bike, Train, Palmtree, HeartPulse,
   Banknote, Users, Sparkles, Cat, TreePine, Pill as PillIcon,
-  SlidersHorizontal, Sliders,
+  SlidersHorizontal, Sliders, Beef, Fish, Egg, Drumstick, Soup, Salad,
+  Sandwich, IceCreamCone, Cake, Candy, Popcorn, Milk, Wheat, ChefHat,
+  CookingPot, Croissant, Wine, CupSoda, Umbrella, Glasses, Watch, Backpack,
+  Luggage, Key, Lightbulb, Flame, Thermometer, Paintbrush, Recycle, Leaf,
+  Flower2, Sofa, Bed, Bath, Anchor, Ship, Tent, MapPin,
 } from "lucide-react";
 import { storage } from "./storage";
 
@@ -79,31 +83,61 @@ const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto
 const WEEKDAYS = ["L","M","M","J","V","S","D"];
 
 const ICONS = [
-  { key: "home", Icon: Home }, { key: "cart", Icon: ShoppingCart },
-  { key: "car", Icon: Car }, { key: "food", Icon: Utensils },
-  { key: "zap", Icon: Zap }, { key: "water", Icon: Droplet },
-  { key: "wifi", Icon: Wifi }, { key: "tool", Icon: Wrench },
-  { key: "film", Icon: Film }, { key: "gift", Icon: Gift },
-  { key: "wallet", Icon: Wallet }, { key: "pet", Icon: Dog },
-  { key: "book", Icon: Book }, { key: "plane", Icon: Plane },
-  { key: "heart", Icon: Heart }, { key: "bag", Icon: ShoppingBag },
-  { key: "bank", Icon: Landmark }, { key: "work", Icon: Briefcase },
-  { key: "coffee", Icon: Coffee }, { key: "pizza", Icon: Pizza },
-  { key: "bus", Icon: Bus }, { key: "fuel", Icon: Fuel },
-  { key: "health", Icon: Stethoscope }, { key: "school", Icon: GraduationCap },
-  { key: "baby", Icon: Baby }, { key: "clothes", Icon: Shirt },
-  { key: "phone", Icon: Smartphone }, { key: "tv", Icon: Tv },
-  { key: "games", Icon: Gamepad2 }, { key: "gym", Icon: Dumbbell },
-  { key: "haircut", Icon: Scissors }, { key: "building", Icon: Building2 },
-  { key: "card", Icon: CreditCard }, { key: "music", Icon: Music },
-  { key: "camera", Icon: Camera }, { key: "basket", Icon: ShoppingBasket },
-  { key: "bike", Icon: Bike }, { key: "train", Icon: Train },
-  { key: "vacation", Icon: Palmtree }, { key: "medical", Icon: HeartPulse },
-  { key: "cash", Icon: Banknote }, { key: "family", Icon: Users },
-  { key: "sparkles", Icon: Sparkles }, { key: "cat", Icon: Cat },
-  { key: "tree", Icon: TreePine }, { key: "pill", Icon: PillIcon },
+  // Casa / servicios — ámbar-café
+  { key: "home", Icon: Home, color: "#F2A65A" }, { key: "zap", Icon: Zap, color: "#F5C445" },
+  { key: "water", Icon: Droplet, color: "#4CB8E8" }, { key: "wifi", Icon: Wifi, color: "#5B8DEF" },
+  { key: "flame", Icon: Flame, color: "#FF7A4D" }, { key: "tool", Icon: Wrench, color: "#8B93A3" },
+  { key: "lightbulb", Icon: Lightbulb, color: "#F6C445" }, { key: "sofa", Icon: Sofa, color: "#C98A5E" },
+  { key: "bed", Icon: Bed, color: "#9B87D6" }, { key: "bath", Icon: Bath, color: "#4CB8E8" },
+  { key: "thermometer", Icon: Thermometer, color: "#FF6B6B" }, { key: "paintbrush", Icon: Paintbrush, color: "#F27EB0" },
+  { key: "building", Icon: Building2, color: "#7A93B8" }, { key: "key", Icon: Key, color: "#E0B341" },
+  // Super / comida — rojos, naranjas, verdes cálidos
+  { key: "cart", Icon: ShoppingCart, color: "#4CAF7D" }, { key: "basket", Icon: ShoppingBasket, color: "#F2A65A" },
+  { key: "food", Icon: Utensils, color: "#FF7A4D" }, { key: "beef", Icon: Beef, color: "#E85D5D" },
+  { key: "fish", Icon: Fish, color: "#4CB8E8" }, { key: "egg", Icon: Egg, color: "#F5D06A" },
+  { key: "drumstick", Icon: Drumstick, color: "#E0955F" }, { key: "soup", Icon: Soup, color: "#F2915C" },
+  { key: "salad", Icon: Salad, color: "#5FBF6B" }, { key: "sandwich", Icon: Sandwich, color: "#E8A857" },
+  { key: "icecream", Icon: IceCreamCone, color: "#F2A0C4" }, { key: "cake", Icon: Cake, color: "#F27EB0" },
+  { key: "candy", Icon: Candy, color: "#FF6B9E" }, { key: "popcorn", Icon: Popcorn, color: "#F5C445" },
+  { key: "milk", Icon: Milk, color: "#9BC6E8" }, { key: "wheat", Icon: Wheat, color: "#D8B355" },
+  { key: "chef", Icon: ChefHat, color: "#5A6472" }, { key: "pot", Icon: CookingPot, color: "#E0705F" },
+  { key: "croissant", Icon: Croissant, color: "#E0A85C" }, { key: "wine", Icon: Wine, color: "#9B4D6B" },
+  { key: "soda", Icon: CupSoda, color: "#FF7A7A" }, { key: "coffee", Icon: Coffee, color: "#8A5A3B" },
+  { key: "pizza", Icon: Pizza, color: "#F2915C" },
+  // Transporte — azules
+  { key: "car", Icon: Car, color: "#5B8DEF" }, { key: "bus", Icon: Bus, color: "#5FA8D3" },
+  { key: "fuel", Icon: Fuel, color: "#F2A65A" }, { key: "bike", Icon: Bike, color: "#4CAF7D" },
+  { key: "train", Icon: Train, color: "#7A93B8" }, { key: "plane", Icon: Plane, color: "#5B8DEF" },
+  { key: "ship", Icon: Ship, color: "#4CB8E8" }, { key: "anchor", Icon: Anchor, color: "#5A7A9B" },
+  // Salud / bienestar — rosas y rojos suaves
+  { key: "health", Icon: Stethoscope, color: "#E85D8A" }, { key: "medical", Icon: HeartPulse, color: "#FF6B6B" },
+  { key: "pill", Icon: PillIcon, color: "#5FBF9B" }, { key: "heart", Icon: Heart, color: "#FF6B9E" },
+  { key: "baby", Icon: Baby, color: "#F2A0C4" }, { key: "gym", Icon: Dumbbell, color: "#5A6472" },
+  { key: "haircut", Icon: Scissors, color: "#9B87D6" },
+  // Ocio / entretenimiento — morados y magentas
+  { key: "film", Icon: Film, color: "#9B6BD6" }, { key: "music", Icon: Music, color: "#D65FA8" },
+  { key: "games", Icon: Gamepad2, color: "#6B7FE0" }, { key: "tv", Icon: Tv, color: "#5A6472" },
+  { key: "camera", Icon: Camera, color: "#F2A65A" }, { key: "vacation", Icon: Palmtree, color: "#4CAF7D" },
+  { key: "tent", Icon: Tent, color: "#E0955F" }, { key: "sparkles", Icon: Sparkles, color: "#F5C445" },
+  { key: "gift", Icon: Gift, color: "#E85D8A" },
+  // Compras / personal — teales y cian
+  { key: "bag", Icon: ShoppingBag, color: "#4CB8A8" }, { key: "clothes", Icon: Shirt, color: "#5FA8D3" },
+  { key: "phone", Icon: Smartphone, color: "#5A6472" }, { key: "watch", Icon: Watch, color: "#8B93A3" },
+  { key: "glasses", Icon: Glasses, color: "#5A6472" }, { key: "backpack", Icon: Backpack, color: "#E0955F" },
+  { key: "luggage", Icon: Luggage, color: "#7A93B8" }, { key: "umbrella", Icon: Umbrella, color: "#5B8DEF" },
+  // Dinero / trabajo / familia — verdes
+  { key: "wallet", Icon: Wallet, color: "#4CAF7D" }, { key: "bank", Icon: Landmark, color: "#5A8A6B" },
+  { key: "cash", Icon: Banknote, color: "#4CAF7D" }, { key: "card", Icon: CreditCard, color: "#5B8DEF" },
+  { key: "work", Icon: Briefcase, color: "#7A93B8" }, { key: "school", Icon: GraduationCap, color: "#5B8DEF" },
+  { key: "book", Icon: Book, color: "#E0955F" }, { key: "family", Icon: Users, color: "#F2A65A" },
+  // Otros / naturaleza
+  { key: "pet", Icon: Dog, color: "#E0955F" }, { key: "cat", Icon: Cat, color: "#8B93A3" },
+  { key: "tree", Icon: TreePine, color: "#4CAF7D" }, { key: "leaf", Icon: Leaf, color: "#5FBF6B" },
+  { key: "flower", Icon: Flower2, color: "#F27EB0" }, { key: "recycle", Icon: Recycle, color: "#4CAF7D" },
+  { key: "map", Icon: MapPin, color: "#E85D5D" },
 ];
 const iconFor = (key) => (ICONS.find((i) => i.key === key) || ICONS[10]).Icon;
+const colorForIcon = (key) => (ICONS.find((i) => i.key === key) || ICONS[10]).color;
 
 function uid(p = "id") { return p + "_" + Math.random().toString(36).slice(2, 10); }
 
@@ -285,6 +319,7 @@ export default function FinanzasMX() {
   const [prefillDate, setPrefillDate] = useState(null);
   const [saveNote, setSaveNote] = useState("");
   const [editingTx, setEditingTx] = useState(null); // transaction being edited, or null when adding
+  const [templateTx, setTemplateTx] = useState(null); // prefill for a NEW transaction (from "Registrar" on a concept)
   const [viewModeOpen, setViewModeOpen] = useState(false);
 
   /* ---- load / save ---- */
@@ -344,10 +379,10 @@ export default function FinanzasMX() {
   function addSubcategory(mainId, name, icon) {
     setCategories((prev) => prev.map((c) => c.id === mainId ? { ...c, subcategories: [...c.subcategories, { id: uid("sub"), name, icon, concepts: [] }] } : c));
   }
-  function addConcept(mainId, subId, name, amount, periodicity) {
+  function addConcept(mainId, subId, name, amount, isFixed, periodicity, dueDay, dueWeekday) {
     setCategories((prev) => prev.map((c) => {
       if (c.id !== mainId) return c;
-      return { ...c, subcategories: c.subcategories.map((s) => s.id === subId ? { ...s, concepts: [...s.concepts, { id: uid("con"), name, amount: Number(amount) || 0, periodicity }] } : s) };
+      return { ...c, subcategories: c.subcategories.map((s) => s.id === subId ? { ...s, concepts: [...s.concepts, { id: uid("con"), name, amount: Number(amount) || 0, isFixed: !!isFixed, periodicity: isFixed ? periodicity : null, dueDay: dueDay ? Number(dueDay) : null, dueWeekday: periodicity === "semanal" ? dueWeekday : null }] } : s) };
     }));
   }
   function deleteSub(mainId, subId) {
@@ -361,8 +396,8 @@ export default function FinanzasMX() {
     // keep existing transactions' displayed sub-name in sync
     setTransactions((prev) => prev.map((t) => t.subId === subId ? { ...t, subName: name, icon } : t));
   }
-  function editConcept(mainId, subId, conId, name, amount, periodicity) {
-    setCategories((prev) => prev.map((c) => c.id !== mainId ? c : { ...c, subcategories: c.subcategories.map((s) => s.id !== subId ? s : { ...s, concepts: s.concepts.map((k) => k.id === conId ? { ...k, name, amount: Number(amount) || 0, periodicity } : k) }) }));
+  function editConcept(mainId, subId, conId, name, amount, isFixed, periodicity, dueDay, dueWeekday) {
+    setCategories((prev) => prev.map((c) => c.id !== mainId ? c : { ...c, subcategories: c.subcategories.map((s) => s.id !== subId ? s : { ...s, concepts: s.concepts.map((k) => k.id === conId ? { ...k, name, amount: Number(amount) || 0, isFixed: !!isFixed, periodicity: isFixed ? periodicity : null, dueDay: dueDay ? Number(dueDay) : null, dueWeekday: periodicity === "semanal" ? dueWeekday : null } : k) }) }));
   }
 
   // Switch to a different financial rule (preset or custom). Subcategories of
@@ -551,11 +586,12 @@ export default function FinanzasMX() {
             profile={profile}
             defaultDate={prefillDate || todayISO()}
             editingTx={editingTx}
-            onClose={() => { setAddOpen(null); setPrefillDate(null); setEditingTx(null); }}
+            template={templateTx}
+            onClose={() => { setAddOpen(null); setPrefillDate(null); setEditingTx(null); setTemplateTx(null); }}
             onSave={(tx, newSub, newConcept) => {
               if (newSub) addSubcategory(tx.mainId, newSub.name, newSub.icon);
               if (editingTx) editTransaction(editingTx.id, tx); else addTransaction(tx);
-              setAddOpen(null); setPrefillDate(null); setEditingTx(null);
+              setAddOpen(null); setPrefillDate(null); setEditingTx(null); setTemplateTx(null);
             }}
             onUpdateIncomeDefault={(amount, periodicity) => setProfile((p) => ({ ...p, incomeAmount: amount, incomePeriodicity: periodicity }))}
             ensureSubFor={ensureSub}
@@ -579,11 +615,16 @@ export default function FinanzasMX() {
             <CategoryManager
               cat={categories.find((c) => c.id === catManagerCat.id) || catManagerCat}
               onAddSub={(name, icon) => addSubcategory(catManagerCat.id, name, icon)}
-              onAddConcept={(subId, name, amount, per) => addConcept(catManagerCat.id, subId, name, amount, per)}
+              onAddConcept={(subId, name, amount, isFixed, per, dueDay, dueWeekday) => addConcept(catManagerCat.id, subId, name, amount, isFixed, per, dueDay, dueWeekday)}
               onEditSub={(subId, name, icon) => editSub(catManagerCat.id, subId, name, icon)}
-              onEditConcept={(subId, conId, name, amount, per) => editConcept(catManagerCat.id, subId, conId, name, amount, per)}
+              onEditConcept={(subId, conId, name, amount, isFixed, per, dueDay, dueWeekday) => editConcept(catManagerCat.id, subId, conId, name, amount, isFixed, per, dueDay, dueWeekday)}
               onDeleteSub={(subId) => setConfirmDel({ type: "sub", mainId: catManagerCat.id, subId })}
               onDeleteConcept={(subId, conId) => setConfirmDel({ type: "con", mainId: catManagerCat.id, subId, conId })}
+              onQuickRegister={(sub, con) => {
+                setTemplateTx({ mainId: catManagerCat.id, subId: sub.id, subName: sub.name, conceptName: con.name, amount: con.amount, icon: sub.icon });
+                setCatManagerCat(null);
+                setAddOpen("expense");
+              }}
             />
           </Sheet>
         )}
@@ -592,7 +633,12 @@ export default function FinanzasMX() {
           <Sheet title={goalDetail === "new" ? "Nueva meta" : goalDetail.name} onClose={() => setGoalDetail(null)}>
             <GoalDetail
               goal={goalDetail === "new" ? null : goals.find((g) => g.id === goalDetail.id)}
-              onCreate={(g) => { setGoals((prev) => [...prev, { ...g, id: uid("goal"), createdAt: todayISO(), contributions: [] }]); setGoalDetail(null); }}
+              onCreate={(g) => {
+                const { initialSaved, ...goalFields } = g;
+                const contributions = initialSaved > 0 ? [{ id: uid("c"), amount: initialSaved, date: todayISO(), note: "Ahorro inicial" }] : [];
+                setGoals((prev) => [...prev, { ...goalFields, id: uid("goal"), createdAt: todayISO(), contributions }]);
+                setGoalDetail(null);
+              }}
               onContribute={(goalId, amount, note) => {
                 setGoals((prev) => prev.map((g) => g.id === goalId ? { ...g, contributions: [...g.contributions, { id: uid("c"), amount: Number(amount), date: todayISO(), note }] } : g));
               }}
@@ -675,7 +721,7 @@ function Onboarding({ onDone }) {
     } else {
       ruleCats = RULE_PRESETS[rulePreset].map((c) => ({ ...c, id: uid("rc_" + c.id) }));
     }
-    const profile = { name: name.trim() || "Usuario", incomeAmount: Number(amount) || 0, incomePeriodicity: periodicity, ruleName: rulePreset };
+    const profile = { name: name.trim() || "Usuario", incomeAmount: Number(amount) || 0, incomePeriodicity: periodicity, ruleName: rulePreset, viewMode: periodicity };
     const cats = ruleCats.map((rc) => ({ id: rc.id, name: rc.name, percent: rc.percent, subcategories: [] }));
     onDone(profile, cats);
   }
@@ -769,21 +815,28 @@ function Onboarding({ onDone }) {
 
 function HomeScreen({ profile, categories, monthLabel, shiftMonth, monthlyIncome, totalSpentMonth, totalIncomeMonth, spentInCategory, budgetFor, monthExpenses, transactions, deleteTransaction, onEditTransaction, onAddExpense, onAddIncome }) {
   const c = useColors();
-  const remaining = monthlyIncome - totalSpentMonth;
   const viewMode = profile.viewMode || "mensual";
   const customDays = profile.viewModeCustomDays || 7;
   const period = viewMode !== "mensual" ? getViewPeriod(transactions, viewMode, customDays) : null;
+
+  const heroLabel = period ? `DISPONIBLE ${period.label.toUpperCase()}` : "DISPONIBLE ESTE MES";
+  const heroBudget = period ? monthlyIncome / period.divisor : monthlyIncome;
+  const heroSpent = period ? period.items.reduce((s, t) => s + t.amount, 0) : totalSpentMonth;
+  const heroIncomeLabel = period ? "Presupuesto" : "Ingresos";
+  const heroIncomeVal = period ? heroBudget : totalIncomeMonth;
+  const remaining = heroBudget - heroSpent;
+
   return (
     <div>
       <MonthSwitcher label={monthLabel} onPrev={() => shiftMonth(-1)} onNext={() => shiftMonth(1)} />
 
       <div className="rounded-3xl mt-3 p-5" style={{ background: LIME, color: INK, position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, borderRadius: "50%", background: "rgba(255,255,255,0.25)", filter: "blur(2px)" }} />
-        <div style={{ fontSize: 14, fontWeight: 700, opacity: 0.7 }}>DISPONIBLE ESTE MES</div>
+        <div style={{ fontSize: 14, fontWeight: 700, opacity: 0.7 }}>{heroLabel}</div>
         <div className="num" style={{ fontSize: 36, fontWeight: 700, marginTop: 4 }}>{fmt(remaining)}</div>
         <div className="flex gap-4 mt-3" style={{ fontSize: 14, fontWeight: 600 }}>
-          <div>Ingresos: <span className="num">{fmt(totalIncomeMonth)}</span></div>
-          <div>Gastado: <span className="num">{fmt(totalSpentMonth)}</span></div>
+          <div>{heroIncomeLabel}: <span className="num">{fmt(heroIncomeVal)}</span></div>
+          <div>Gastado: <span className="num">{fmt(heroSpent)}</span></div>
         </div>
       </div>
 
@@ -836,6 +889,7 @@ function HomeScreen({ profile, categories, monthLabel, shiftMonth, monthlyIncome
 
 function TxRow({ t, onDelete, onEdit }) {
   const Icon = iconFor(t.icon || "wallet");
+  const iconColor = colorForIcon(t.icon || "wallet");
   return (
     <div className="rounded-2xl p-3 flex items-center justify-between" style={{ background: CARD }}>
       <div className="flex items-center gap-3">
@@ -848,7 +902,7 @@ function TxRow({ t, onDelete, onEdit }) {
         </div>
       </div>
       <div className="flex items-center gap-1">
-        <div className="rounded-full flex items-center justify-center" style={{ width: 34, height: 34, background: "#F2F3F5" }}><Icon size={15} color={INK} /></div>
+        <div className="rounded-full flex items-center justify-center" style={{ width: 34, height: 34, background: iconColor + "22" }}><Icon size={16} color={iconColor} /></div>
         {onEdit && <button onClick={onEdit} style={{ background: "none", border: "none", padding: 6 }}><Edit2 size={15} color={MUTED} /></button>}
         <button onClick={onDelete} style={{ background: "none", border: "none", padding: 6 }}><Trash2 size={15} color={MUTED} /></button>
       </div>
@@ -1050,7 +1104,7 @@ function DayDetail({ date, transactions, onDelete, onEdit, onAdd }) {
 function getViewPeriod(transactions, viewMode, customDays) {
   const today = todayISO();
   const expenses = transactions.filter((t) => t.type === "expense");
-  if (viewMode === "diario") {
+  if (viewMode === "diaria") {
     return { label: "hoy", items: expenses.filter((t) => t.date === today), divisor: 30 };
   }
   if (viewMode === "semanal") {
@@ -1423,13 +1477,58 @@ function CategoriesScreen({ categories, onOpenCat, spentInCategory, budgetFor })
   );
 }
 
-function CategoryManager({ cat, onAddSub, onAddConcept, onEditSub, onEditConcept, onDeleteSub, onDeleteConcept }) {
+const WEEKDAY_FULL = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+
+function conceptScheduleLabel(con) {
+  if (!con.isFixed) return "Monto único";
+  if (con.periodicity === "mensual") return `Fijo · mensual${con.dueDay ? `, día ${con.dueDay}` : ""}`;
+  if (con.periodicity === "quincenal") return `Fijo · quincenal${con.dueDay ? `, días ${con.dueDay} y ${((Number(con.dueDay) + 15 - 1) % 30) + 1}` : ""}`;
+  if (con.periodicity === "semanal") return `Fijo · semanal${con.dueWeekday !== undefined && con.dueWeekday !== null ? `, ${WEEKDAY_FULL[con.dueWeekday]}` : ""}`;
+  if (con.periodicity === "diaria") return "Fijo · diario";
+  return "Fijo";
+}
+
+function ConceptScheduleFields({ isFixed, setIsFixed, periodicity, setPeriodicity, dueDay, setDueDay, dueWeekday, setDueWeekday }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setIsFixed(false)} className="flex-1 rounded-lg py-2" style={{ background: !isFixed ? LIME : "#F7F8F9", border: "none", fontWeight: 700, fontSize: 13 }}>Monto único</button>
+        <button type="button" onClick={() => setIsFixed(true)} className="flex-1 rounded-lg py-2" style={{ background: isFixed ? LIME : "#F7F8F9", border: "none", fontWeight: 700, fontSize: 13 }}>Gasto fijo</button>
+      </div>
+      {isFixed && (
+        <>
+          <select value={periodicity} onChange={(e) => setPeriodicity(e.target.value)} className="rounded-lg" style={{ padding: "9px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 14 }}>
+            <option value="diaria">Diaria</option><option value="semanal">Semanal</option><option value="quincenal">Quincenal</option><option value="mensual">Mensual</option>
+          </select>
+          {periodicity === "mensual" && (
+            <input value={dueDay} onChange={(e) => setDueDay(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))} placeholder="Día del mes en que se paga (1-31)" className="rounded-lg" style={{ padding: "9px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 14 }} />
+          )}
+          {periodicity === "quincenal" && (
+            <input value={dueDay} onChange={(e) => setDueDay(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))} placeholder="Primer día de pago (1-15)" className="rounded-lg" style={{ padding: "9px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 14 }} />
+          )}
+          {periodicity === "semanal" && (
+            <div className="flex gap-1">
+              {WEEKDAYS.map((w, i) => (
+                <button type="button" key={i} onClick={() => setDueWeekday(i)} className="flex-1 rounded-lg py-2" style={{ background: dueWeekday === i ? LIME : "#fff", border: "1px solid #E7E9EC", fontWeight: 700, fontSize: 13 }}>{w}</button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function CategoryManager({ cat, onAddSub, onAddConcept, onEditSub, onEditConcept, onDeleteSub, onDeleteConcept, onQuickRegister }) {
   const [newSubName, setNewSubName] = useState("");
   const [newSubIcon, setNewSubIcon] = useState("wallet");
   const [openSub, setOpenSub] = useState(null);
   const [conName, setConName] = useState("");
   const [conAmount, setConAmount] = useState("");
+  const [conFixed, setConFixed] = useState(false);
   const [conPer, setConPer] = useState("mensual");
+  const [conDueDay, setConDueDay] = useState("");
+  const [conDueWeekday, setConDueWeekday] = useState(0);
 
   // editing state for renaming an existing subcategory
   const [editSubId, setEditSubId] = useState(null);
@@ -1440,22 +1539,35 @@ function CategoryManager({ cat, onAddSub, onAddConcept, onEditSub, onEditConcept
   const [editCon, setEditCon] = useState(null); // { subId, conId }
   const [editConName, setEditConName] = useState("");
   const [editConAmount, setEditConAmount] = useState("");
+  const [editConFixed, setEditConFixed] = useState(false);
   const [editConPer, setEditConPer] = useState("mensual");
+  const [editConDueDay, setEditConDueDay] = useState("");
+  const [editConDueWeekday, setEditConDueWeekday] = useState(0);
 
   function startEditSub(sub) {
     setEditSubId(sub.id); setEditSubName(sub.name); setEditSubIcon(sub.icon || "wallet");
     setOpenSub(null); setEditCon(null);
   }
   function startEditCon(subId, con) {
-    setEditCon({ subId, conId: con.id }); setEditConName(con.name); setEditConAmount(String(con.amount)); setEditConPer(con.periodicity);
+    setEditCon({ subId, conId: con.id }); setEditConName(con.name); setEditConAmount(String(con.amount));
+    setEditConFixed(!!con.isFixed); setEditConPer(con.periodicity || "mensual");
+    setEditConDueDay(con.dueDay ? String(con.dueDay) : ""); setEditConDueWeekday(con.dueWeekday ?? 0);
     setEditSubId(null);
+  }
+  function resetNewConceptForm() {
+    setConName(""); setConAmount(""); setConFixed(false); setConPer("mensual"); setConDueDay(""); setConDueWeekday(0); setOpenSub(null);
   }
 
   return (
     <div>
+      <p style={{ fontSize: 13, color: MUTED, marginBottom: 12, lineHeight: 1.4 }}>
+        Los conceptos son plantillas de referencia — para que un gasto cuente de verdad,
+        dale al botón <b>Registrar</b> junto al concepto (o usa "+ Registrar gasto" desde Inicio).
+      </p>
       <div className="flex flex-col gap-3 mb-4">
         {cat.subcategories.map((sub) => {
           const Icon = iconFor(sub.icon);
+          const subColor = colorForIcon(sub.icon);
           const isEditingThisSub = editSubId === sub.id;
           return (
             <div key={sub.id} className="rounded-xl" style={{ background: "#F7F8F9", padding: 12 }}>
@@ -1463,8 +1575,8 @@ function CategoryManager({ cat, onAddSub, onAddConcept, onEditSub, onEditConcept
                 <div className="flex flex-col gap-2">
                   <input value={editSubName} onChange={(e) => setEditSubName(e.target.value)} className="rounded-lg" style={{ padding: "9px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 15 }} />
                   <div className="flex gap-2 flex-wrap">
-                    {ICONS.map(({ key, Icon: I }) => (
-                      <button key={key} onClick={() => setEditSubIcon(key)} className="rounded-full flex items-center justify-center" style={{ width: 30, height: 30, background: editSubIcon === key ? LIME : "#fff", border: "none" }}><I size={14} /></button>
+                    {ICONS.map(({ key, Icon: I, color }) => (
+                      <button key={key} onClick={() => setEditSubIcon(key)} className="rounded-full flex items-center justify-center" style={{ width: 32, height: 32, background: editSubIcon === key ? LIME : color + "22", border: "none" }}><I size={15} color={editSubIcon === key ? INK : color} /></button>
                     ))}
                   </div>
                   <div className="flex gap-2">
@@ -1475,11 +1587,11 @@ function CategoryManager({ cat, onAddSub, onAddConcept, onEditSub, onEditConcept
               ) : (
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="rounded-full flex items-center justify-center" style={{ width: 30, height: 30, background: "#fff" }}><Icon size={14} /></div>
+                    <div className="rounded-full flex items-center justify-center" style={{ width: 32, height: 32, background: subColor + "22" }}><Icon size={16} color={subColor} /></div>
                     <div style={{ fontWeight: 700, fontSize: 15, color: INK }}>{sub.name}</div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => setOpenSub(openSub === sub.id ? null : sub.id)} style={{ background: "none", border: "none", fontSize: 14, color: "#5A6472", fontWeight: 600 }}>{openSub === sub.id ? "Cerrar" : "+ Concepto"}</button>
+                    <button onClick={() => { setOpenSub(openSub === sub.id ? null : sub.id); if (openSub !== sub.id) resetNewConceptForm(); }} style={{ background: "none", border: "none", fontSize: 14, color: "#5A6472", fontWeight: 600 }}>{openSub === sub.id ? "Cerrar" : "+ Concepto"}</button>
                     <button onClick={() => startEditSub(sub)} style={{ background: "none", border: "none" }}><Edit2 size={14} color={MUTED} /></button>
                     <button onClick={() => onDeleteSub(sub.id)} style={{ background: "none", border: "none" }}><Trash2 size={14} color={MUTED} /></button>
                   </div>
@@ -1494,24 +1606,26 @@ function CategoryManager({ cat, onAddSub, onAddConcept, onEditSub, onEditConcept
                       return (
                         <div key={con.id} className="flex flex-col gap-2 rounded-lg p-2" style={{ background: "#fff" }}>
                           <input value={editConName} onChange={(e) => setEditConName(e.target.value)} className="rounded-lg" style={{ padding: "8px 9px", background: "#F7F8F9", border: "1px solid #E7E9EC", fontSize: 14 }} />
-                          <div className="flex gap-2">
-                            <input value={editConAmount} onChange={(e) => setEditConAmount(e.target.value.replace(/[^0-9.]/g, ""))} className="flex-1 rounded-lg" style={{ padding: "8px 9px", background: "#F7F8F9", border: "1px solid #E7E9EC", fontSize: 14 }} />
-                            <select value={editConPer} onChange={(e) => setEditConPer(e.target.value)} className="rounded-lg" style={{ padding: "8px 9px", background: "#F7F8F9", border: "1px solid #E7E9EC", fontSize: 14 }}>
-                              <option value="diaria">Diaria</option><option value="semanal">Semanal</option><option value="quincenal">Quincenal</option><option value="mensual">Mensual</option>
-                            </select>
-                          </div>
+                          <input value={editConAmount} onChange={(e) => setEditConAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="Monto" className="rounded-lg" style={{ padding: "8px 9px", background: "#F7F8F9", border: "1px solid #E7E9EC", fontSize: 14 }} />
+                          <ConceptScheduleFields
+                            isFixed={editConFixed} setIsFixed={setEditConFixed}
+                            periodicity={editConPer} setPeriodicity={setEditConPer}
+                            dueDay={editConDueDay} setDueDay={setEditConDueDay}
+                            dueWeekday={editConDueWeekday} setDueWeekday={setEditConDueWeekday}
+                          />
                           <div className="flex gap-2">
                             <button onClick={() => setEditCon(null)} className="flex-1 rounded-lg py-2" style={{ background: "#F7F8F9", border: "none", fontWeight: 600, fontSize: 13 }}>Cancelar</button>
-                            <button onClick={() => { if (editConName.trim()) { onEditConcept(sub.id, con.id, editConName.trim(), editConAmount, editConPer); setEditCon(null); } }} className="flex-1 rounded-lg py-2" style={{ background: LIME, border: "none", fontWeight: 700, fontSize: 13 }}>Guardar</button>
+                            <button onClick={() => { if (editConName.trim()) { onEditConcept(sub.id, con.id, editConName.trim(), editConAmount, editConFixed, editConPer, editConDueDay, editConDueWeekday); setEditCon(null); } }} className="flex-1 rounded-lg py-2" style={{ background: LIME, border: "none", fontWeight: 700, fontSize: 13 }}>Guardar</button>
                           </div>
                         </div>
                       );
                     }
                     return (
                       <div key={con.id} className="flex justify-between items-center" style={{ fontSize: 14, color: "#5A6472" }}>
-                        <span>{con.name} <span style={{ color: MUTED }}>({con.periodicity})</span></span>
-                        <div className="flex items-center gap-2">
+                        <span>{con.name} <span style={{ color: MUTED, fontSize: 12 }}>· {conceptScheduleLabel(con)}</span></span>
+                        <div className="flex items-center gap-1">
                           <span className="num" style={{ fontWeight: 600 }}>{fmt(con.amount)}</span>
+                          <button onClick={() => onQuickRegister(sub, con)} title="Registrar este gasto" style={{ background: LIME, border: "none", borderRadius: 999, padding: "4px 8px", fontSize: 11, fontWeight: 800, color: INK }}>Registrar</button>
                           <button onClick={() => startEditCon(sub.id, con)} style={{ background: "none", border: "none" }}><Edit2 size={13} color={MUTED} /></button>
                           <button onClick={() => onDeleteConcept(sub.id, con.id)} style={{ background: "none", border: "none" }}><X size={13} color={MUTED} /></button>
                         </div>
@@ -1523,13 +1637,14 @@ function CategoryManager({ cat, onAddSub, onAddConcept, onEditSub, onEditConcept
               {openSub === sub.id && (
                 <div className="mt-3 flex flex-col gap-2">
                   <input value={conName} onChange={(e) => setConName(e.target.value)} placeholder="Nombre del concepto (ej. Renta)" className="rounded-lg" style={{ padding: "9px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 14 }} />
-                  <div className="flex gap-2">
-                    <input value={conAmount} onChange={(e) => setConAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="Monto fijo" className="flex-1 rounded-lg" style={{ padding: "9px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 14 }} />
-                    <select value={conPer} onChange={(e) => setConPer(e.target.value)} className="rounded-lg" style={{ padding: "9px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 14 }}>
-                      <option value="diaria">Diaria</option><option value="semanal">Semanal</option><option value="quincenal">Quincenal</option><option value="mensual">Mensual</option>
-                    </select>
-                  </div>
-                  <button onClick={() => { if (conName.trim()) { onAddConcept(sub.id, conName.trim(), conAmount, conPer); setConName(""); setConAmount(""); setOpenSub(null); } }} className="rounded-lg py-2" style={{ background: LIME, border: "none", fontWeight: 700, fontSize: 14 }}>Guardar concepto</button>
+                  <input value={conAmount} onChange={(e) => setConAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="Monto de referencia" className="rounded-lg" style={{ padding: "9px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 14 }} />
+                  <ConceptScheduleFields
+                    isFixed={conFixed} setIsFixed={setConFixed}
+                    periodicity={conPer} setPeriodicity={setConPer}
+                    dueDay={conDueDay} setDueDay={setConDueDay}
+                    dueWeekday={conDueWeekday} setDueWeekday={setConDueWeekday}
+                  />
+                  <button onClick={() => { if (conName.trim()) { onAddConcept(sub.id, conName.trim(), conAmount, conFixed, conPer, conDueDay, conDueWeekday); resetNewConceptForm(); } }} className="rounded-lg py-2" style={{ background: LIME, border: "none", fontWeight: 700, fontSize: 14 }}>Guardar concepto</button>
                 </div>
               )}
             </div>
@@ -1541,8 +1656,8 @@ function CategoryManager({ cat, onAddSub, onAddConcept, onEditSub, onEditConcept
       <div style={{ fontWeight: 700, fontSize: 15, color: INK, marginBottom: 8 }}>Nueva subcategoría</div>
       <input value={newSubName} onChange={(e) => setNewSubName(e.target.value)} placeholder="Ej. CASA, SUPER, AUTO…" className="w-full rounded-lg mb-2" style={{ padding: "10px 12px", background: "#F4F5F7", border: "1px solid #E7E9EC", fontSize: 15 }} />
       <div className="flex gap-2 flex-wrap mb-3">
-        {ICONS.map(({ key, Icon }) => (
-          <button key={key} onClick={() => setNewSubIcon(key)} className="rounded-full flex items-center justify-center" style={{ width: 32, height: 32, background: newSubIcon === key ? LIME : "#F2F3F5", border: "none" }}><Icon size={15} /></button>
+        {ICONS.map(({ key, Icon, color }) => (
+          <button key={key} onClick={() => setNewSubIcon(key)} className="rounded-full flex items-center justify-center" style={{ width: 34, height: 34, background: newSubIcon === key ? LIME : color + "22", border: "none" }}><Icon size={16} color={newSubIcon === key ? INK : color} /></button>
         ))}
       </div>
       <PrimaryBtn onClick={() => { if (newSubName.trim()) { onAddSub(newSubName.trim(), newSubIcon); setNewSubName(""); } }}>+ Agregar subcategoría</PrimaryBtn>
@@ -1554,14 +1669,14 @@ function CategoryManager({ cat, onAddSub, onAddConcept, onEditSub, onEditConcept
 /* Add transaction sheet                                                    */
 /* ---------------------------------------------------------------------- */
 
-function AddTransactionSheet({ kind, categories, profile, defaultDate, editingTx, onClose, onSave, onUpdateIncomeDefault, ensureSubFor }) {
+function AddTransactionSheet({ kind, categories, profile, defaultDate, editingTx, template, onClose, onSave, onUpdateIncomeDefault, ensureSubFor }) {
   const isEdit = !!editingTx;
   const [type, setType] = useState(editingTx ? editingTx.type : kind); // expense | income
-  const [mainId, setMainId] = useState(editingTx ? editingTx.mainId || "" : categories[0]?.id || "");
-  const [subId, setSubId] = useState(editingTx ? editingTx.subId || "" : "");
+  const [mainId, setMainId] = useState(editingTx ? editingTx.mainId || "" : template ? template.mainId : categories[0]?.id || "");
+  const [subId, setSubId] = useState(editingTx ? editingTx.subId || "" : template ? template.subId : "");
   const [newSubName, setNewSubName] = useState("");
-  const [conceptName, setConceptName] = useState(editingTx ? editingTx.conceptName : "");
-  const [amount, setAmount] = useState(editingTx ? String(editingTx.amount) : "");
+  const [conceptName, setConceptName] = useState(editingTx ? editingTx.conceptName : template ? template.conceptName : "");
+  const [amount, setAmount] = useState(editingTx ? String(editingTx.amount) : template ? String(template.amount) : "");
   const [date, setDate] = useState(editingTx ? editingTx.date : defaultDate);
   const [time, setTime] = useState(editingTx ? (editingTx.time || new Date().toTimeString().slice(0, 5)) : () => new Date().toTimeString().slice(0, 5));
   const [note, setNote] = useState(editingTx ? (editingTx.note || "") : "");
@@ -1689,7 +1804,9 @@ function GoalsScreen({ goals, onOpen, onAdd }) {
 function GoalDetail({ goal, onCreate, onContribute, onDelete }) {
   const [name, setName] = useState("");
   const [targetAmount, setTargetAmount] = useState("");
+  const [initialSaved, setInitialSaved] = useState("");
   const [targetDate, setTargetDate] = useState("");
+  const [contribFreq, setContribFreq] = useState("mensual");
   const [icon, setIcon] = useState("wallet");
   const [contribAmount, setContribAmount] = useState("");
   const [contribNote, setContribNote] = useState("");
@@ -1699,12 +1816,19 @@ function GoalDetail({ goal, onCreate, onContribute, onDelete }) {
       <div>
         <TextField label="Nombre de la meta" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Vacaciones" />
         <TextField label="Monto objetivo" value={targetAmount} onChange={(e) => setTargetAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.00" />
+        <TextField label="¿Ya tienes algo ahorrado? (opcional)" value={initialSaved} onChange={(e) => setInitialSaved(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.00" />
         <TextField label="Fecha objetivo (opcional)" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
+        <div style={{ fontSize: 14, fontWeight: 600, color: "#5A6472", marginBottom: 6 }}>¿Cada cuánto planeas aportar?</div>
+        <div className="grid grid-cols-4 gap-2 mb-4">
+          {["diaria", "semanal", "quincenal", "mensual"].map((f) => (
+            <button key={f} onClick={() => setContribFreq(f)} className="rounded-lg py-2 capitalize" style={{ background: contribFreq === f ? LIME : "#F2F3F5", border: "none", fontWeight: 600, fontSize: 12 }}>{f}</button>
+          ))}
+        </div>
         <div style={{ fontSize: 14, fontWeight: 600, color: "#5A6472", marginBottom: 6 }}>Ícono</div>
         <div className="flex gap-2 flex-wrap mb-4">
-          {ICONS.map(({ key, Icon }) => <button key={key} onClick={() => setIcon(key)} className="rounded-full flex items-center justify-center" style={{ width: 32, height: 32, background: icon === key ? LIME : "#F2F3F5", border: "none" }}><Icon size={15} /></button>)}
+          {ICONS.map(({ key, Icon, color }) => <button key={key} onClick={() => setIcon(key)} className="rounded-full flex items-center justify-center" style={{ width: 34, height: 34, background: icon === key ? LIME : color + "22", border: "none" }}><Icon size={16} color={icon === key ? INK : color} /></button>)}
         </div>
-        <PrimaryBtn disabled={!name.trim() || !(Number(targetAmount) > 0)} onClick={() => onCreate({ name: name.trim(), targetAmount: Number(targetAmount), targetDate: targetDate || null, icon })}>Crear meta</PrimaryBtn>
+        <PrimaryBtn disabled={!name.trim() || !(Number(targetAmount) > 0)} onClick={() => onCreate({ name: name.trim(), targetAmount: Number(targetAmount), targetDate: targetDate || null, contribFreq, icon, initialSaved: Number(initialSaved) || 0 })}>Crear meta</PrimaryBtn>
       </div>
     );
   }
@@ -1738,14 +1862,27 @@ function GoalDetail({ goal, onCreate, onContribute, onDelete }) {
 
       {goal.targetDate && (
         <div className="rounded-xl p-3 mb-3" style={{ background: "#F7F8F9" }}>
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-3">
             <span style={{ fontSize: 14, fontWeight: 700, color: INK }}>Meta: {goal.targetDate}</span>
             {pace && <span style={{ fontSize: 13, fontWeight: 800, color: pace.color }}>{pace.label}</span>}
           </div>
           {per && (
-            <div style={{ fontSize: 14, color: "#5A6472" }}>
-              Debes ahorrar: mensual {fmt(per.mensual)} · quincenal {fmt(per.quincenal)} · semanal {fmt(per.semanal)} · diario {fmt(per.diario)}
-            </div>
+            <>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#5A6472", marginBottom: 8 }}>Debes ahorrar:</div>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { key: "mensual", label: "Mensual", val: per.mensual },
+                  { key: "quincenal", label: "Quincenal", val: per.quincenal },
+                  { key: "semanal", label: "Semanal", val: per.semanal },
+                  { key: "diaria", label: "Diario", val: per.diario },
+                ].map((p) => (
+                  <div key={p.key} className="rounded-lg p-2" style={{ background: goal.contribFreq === p.key ? LIME : "#fff", border: goal.contribFreq === p.key ? "none" : "1px solid #EEF0F3" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: goal.contribFreq === p.key ? "#3A3A00" : MUTED }}>{p.label}</div>
+                    <div className="num" style={{ fontSize: 15, fontWeight: 800, color: INK }}>{fmt(p.val)}</div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}
@@ -1785,7 +1922,7 @@ function ViewModeEditor({ profile, setProfile, onClose }) {
   const [days, setDays] = useState(profile.viewModeCustomDays || 7);
 
   const OPTIONS = [
-    { key: "diario", label: "Diario", desc: "Cuánto llevas gastado hoy vs. tu presupuesto de un día." },
+    { key: "diaria", label: "Diario", desc: "Cuánto llevas gastado hoy vs. tu presupuesto de un día." },
     { key: "semanal", label: "Semanal", desc: "Cuánto llevas gastado esta semana (lunes a domingo)." },
     { key: "quincenal", label: "Quincenal", desc: "Cuánto llevas gastado en la quincena actual." },
     { key: "mensual", label: "Mensual", desc: "El mes completo, como hasta ahora." },
