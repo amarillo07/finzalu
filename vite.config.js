@@ -6,22 +6,22 @@ import { VitePWA } from "vite-plugin-pwa";
 //   https://github.com/tuusuario/finanzas-mx  ->  base: "/finanzas-mx/"
 // If you deploy to a "tuusuario.github.io" repo (user/organization site), use base: "/"
 export default defineConfig({
-  base: "/Finzalu/",
+  base: "/finzalu/",
   plugins: [
     react(),
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icons/icon-192.png", "icons/icon-512.png"],
       manifest: {
-        name: "Finzalu",
-        short_name: "Finzalu",
+        name: "finzalu",
+        short_name: "finzalu",
         description: "Control de gastos e ingresos personales, reglas financieras y metas de ahorro.",
         theme_color: "#131B29",
         background_color: "#131B29",
         display: "standalone",
         orientation: "portrait",
-        start_url: "/Finzalu/",
-        scope: "/Finzalu/",
+        start_url: "/finzalu/",
+        scope: "/finzalu/",
         icons: [
           { src: "icons/icon-192.png", sizes: "192x192", type: "image/png" },
           { src: "icons/icon-512.png", sizes: "512x512", type: "image/png" },
