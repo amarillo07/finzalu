@@ -362,10 +362,10 @@ export default function FinanzasMX() {
   /* ---- render ---- */
   return (
     <ThemeContext.Provider value={colors}>
-    <div className="min-h-screen w-full flex justify-center" style={{ background: `linear-gradient(180deg, ${colors.bgTop} 0%, ${colors.bgBottom} 65%)`, fontFamily: "'Inter', system-ui, sans-serif", transition: "background 0.3s" }}>
+    <div className="min-h-screen w-full flex justify-center" style={{ background: `linear-gradient(180deg, ${colors.bgTop} 0%, ${colors.bgBottom} 65%)`, fontFamily: "'Urbanist', system-ui, sans-serif", transition: "background 0.3s" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
-        .num { font-family: 'Space Grotesk', 'Inter', sans-serif; }
+        @import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800;900&display=swap');
+        .num { font-family: 'Urbanist', system-ui, sans-serif; font-variant-numeric: tabular-nums; }
         ::-webkit-scrollbar { width: 0px; height: 0px; }
         @media print {
           .no-print { display: none !important; }
@@ -618,8 +618,8 @@ function Onboarding({ onDone }) {
   }
 
   return (
-    <div className="min-h-screen w-full flex justify-center" style={{ background: `linear-gradient(180deg, ${PALETTES.dark.bgTop}, ${PALETTES.dark.bgBottom})`, fontFamily: "'Inter', system-ui, sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');`}</style>
+    <div className="min-h-screen w-full flex justify-center" style={{ background: `linear-gradient(180deg, ${PALETTES.dark.bgTop}, ${PALETTES.dark.bgBottom})`, fontFamily: "'Urbanist', system-ui, sans-serif" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800;900&display=swap');`}</style>
       <div className="w-full flex flex-col px-6 py-10" style={{ maxWidth: 430, color: "#fff" }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: LIME, letterSpacing: 1 }}>PASO {step + 1} DE 3</div>
 

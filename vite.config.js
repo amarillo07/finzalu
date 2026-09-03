@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import tailwindcss from "@tailwindcss/vite";
 
 // IMPORTANT: change "base" to match your GitHub repo name, e.g.
 //   https://github.com/tuusuario/finanzas-mx  ->  base: "/finanzas-mx/"
@@ -9,12 +10,13 @@ export default defineConfig({
   base: "/finzalu/",
   plugins: [
     react(),
+    tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icons/icon-192.png", "icons/icon-512.png"],
       manifest: {
-        name: "finzalu",
-        short_name: "finzalu",
+        name: "Finanzas MX",
+        short_name: "Finanzas MX",
         description: "Control de gastos e ingresos personales, reglas financieras y metas de ahorro.",
         theme_color: "#131B29",
         background_color: "#131B29",
