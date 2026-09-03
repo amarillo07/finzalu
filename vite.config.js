@@ -33,6 +33,15 @@ export default defineConfig({
       workbox: {
         // Cache everything needed to run 100% offline after the first visit
         globPatterns: ["**/*.{js,css,html,png,svg,ico,woff2}"],
+        // Always serve index.html from the cache for any app navigation when
+        // the network is unavailable — this is what fixes the ERR_FAILED page.
+        navigateFallback: "index.html",
+        navigateFallbackDenylist: [/^\/finzalu\/icons\//],
+        // Take control immediately on install/update instead of waiting for
+        // every tab to close, and remove old cached versions automatically.
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

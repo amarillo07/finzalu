@@ -417,6 +417,7 @@ export default function FinanzasMX() {
           {screen === "statement" && (
             <StatementScreen
               categories={categories} monthLabel={monthLabel} shiftMonth={shiftMonth}
+              monthCursor={monthCursor}
               monthExpenses={monthExpenses} totalIncomeMonth={totalIncomeMonth}
               totalSpentMonth={totalSpentMonth} budgetFor={budgetFor} spentInCategory={spentInCategory}
             />
@@ -1193,10 +1194,22 @@ function MonthLogView({ monthCursor, setMonthCursor, byDate, onAdd, onDelete }) 
 /* Statement                                                                */
 /* ---------------------------------------------------------------------- */
 
-function StatementScreen({ categories, monthLabel, shiftMonth, monthExpenses, totalIncomeMonth, totalSpentMonth, budgetFor, spentInCategory }) {
+function StatementScreen({ categories, monthLabel, shiftMonth, monthCursor, monthExpenses, totalIncomeMonth, totalSpentMonth, budgetFor, spentInCategory }) {
   const c = useColors();
   const [collapsed, setCollapsed] = useState({});
   const toggle = (id) => setCollapsed((p) => ({ ...p, [id]: !p[id] }));
+
+  function catName(mainId) { return (categories.find((x) => x.id === mainId) || {}).name || "Sin categoría"; }
+
+  // Group this month's expenses into calendar weeks (Monday–Sunday)
+  const weeks = getMonthGrid(monthCursor.y, monthCursor.m);
+  const weekGroups = weeks.map((week, wi) => {
+    const dayStrs = week.filter((d) => d).map((d) => `${monthCursor.y}-${String(monthCursor.m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
+    const items = monthExpenses.filter((t) => dayStrs.includes(t.date)).sort((a, b) => a.date === b.date ? (a.time || "").localeCompare(b.time || "") : a.date.localeCompare(b.date));
+    const total = items.reduce((s, t) => s + t.amount, 0);
+    const first = dayStrs[0], last = dayStrs[dayStrs.length - 1];
+    return { key: `w${wi}`, index: wi + 1, items, total, first, last };
+  }).filter((w) => w.first);
 
   return (
     <div className="print-area">
@@ -1204,46 +1217,56 @@ function StatementScreen({ categories, monthLabel, shiftMonth, monthExpenses, to
       <div className="rounded-2xl p-4 mt-3" style={{ background: CARD }}>
         <div style={{ fontWeight: 800, fontSize: 15, color: INK, marginBottom: 10 }}>ESTADO DE CUENTA — {monthLabel.toUpperCase()}</div>
 
+        {weekGroups.map((w) => {
+          const isCollapsed = collapsed[w.key];
+          return (
+            <div key={w.key} className="mb-4">
+              <button onClick={() => toggle(w.key)} className="w-full flex items-center justify-between" style={{ background: "none", border: "none", borderBottom: "2px solid #EEF0F3", paddingBottom: 6 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: INK }}>
+                  SEMANA {w.index} <span style={{ fontWeight: 500, color: MUTED }}>({w.first.slice(8, 10)}–{w.last.slice(8, 10)})</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="num" style={{ fontWeight: 700, fontSize: 12, color: RED }}>{fmt(w.total)}</span>
+                  {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                </div>
+              </button>
+              {!isCollapsed && (
+                <div className="mt-2">
+                  {w.items.length === 0 ? (
+                    <div style={{ fontSize: 12, color: MUTED, padding: "6px 0" }}>Sin gastos esta semana.</div>
+                  ) : (
+                    w.items.map((t) => (
+                      <div key={t.id} className="flex items-start justify-between" style={{ fontSize: 12, color: "#5A6472", padding: "6px 0", borderBottom: "1px dashed #F1F2F4" }}>
+                        <div style={{ flex: 1, paddingRight: 8 }}>
+                          <div style={{ fontWeight: 700, color: INK }}>{t.conceptName}</div>
+                          <div style={{ color: MUTED, marginTop: 1 }}>
+                            {t.date}{t.time ? ` · ${t.time}` : ""} · {catName(t.mainId)} › {t.subName}
+                          </div>
+                          {t.note && <div style={{ color: MUTED, marginTop: 1, fontStyle: "italic" }}>“{t.note}”</div>}
+                        </div>
+                        <span className="num" style={{ fontWeight: 700, color: INK, whiteSpace: "nowrap" }}>{fmt(t.amount)}</span>
+                      </div>
+                    ))
+                  )}
+                  <div className="flex justify-between mt-2" style={{ fontSize: 12, fontWeight: 800, color: INK }}>
+                    <span>Total semana {w.index}</span><span className="num">{fmt(w.total)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        <div style={{ fontWeight: 800, fontSize: 13, color: INK, margin: "16px 0 8px" }}>RESUMEN POR REGLA FINANCIERA</div>
         {categories.map((cat) => {
           const budget = budgetFor(cat);
           const spent = spentInCategory(cat.id);
           const diff = budget - spent;
           const color = statusColor(spent, budget);
-          const isCollapsed = collapsed[cat.id];
           return (
-            <div key={cat.id} className="mb-4">
-              <button onClick={() => toggle(cat.id)} className="w-full flex items-center justify-between" style={{ background: "none", border: "none", borderBottom: "2px solid #EEF0F3", paddingBottom: 6 }}>
-                <div style={{ fontWeight: 700, fontSize: 13, color: INK }}>{cat.percent}% {cat.name} · Presup. {fmt(budget)}</div>
-                {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-              </button>
-              {!isCollapsed && (
-                <div className="mt-2">
-                  {cat.subcategories.map((sub) => {
-                    const subTx = monthExpenses.filter((t) => t.mainId === cat.id && t.subId === sub.id);
-                    if (subTx.length === 0) return null;
-                    const subtotal = subTx.reduce((s, t) => s + t.amount, 0);
-                    return (
-                      <div key={sub.id} className="mb-2" style={{ paddingLeft: 8 }}>
-                        <div style={{ fontWeight: 700, fontSize: 12, color: "#3A4453" }}>{sub.name}</div>
-                        {subTx.map((t) => (
-                          <div key={t.id} className="flex justify-between" style={{ fontSize: 12, color: "#5A6472", paddingLeft: 10, marginTop: 2 }}>
-                            <span>{t.conceptName}</span><span className="num">{fmt(t.amount)}</span>
-                          </div>
-                        ))}
-                        <div className="flex justify-between" style={{ fontSize: 12, fontWeight: 700, color: INK, paddingLeft: 10, marginTop: 2, borderTop: "1px dashed #EEF0F3" }}>
-                          <span>Subtotal {sub.name}</span><span className="num">{fmt(subtotal)}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <div className="flex justify-between mt-2" style={{ fontSize: 13, fontWeight: 800, color: INK }}>
-                    <span>TOTAL {cat.name}</span><span className="num">{fmt(spent)}</span>
-                  </div>
-                  <div className="flex justify-between" style={{ fontSize: 12, fontWeight: 700, color }}>
-                    <span>{diff >= 0 ? "Diferencia (disponible)" : "Diferencia (excedido)"}</span><span className="num">{fmt(diff)}</span>
-                  </div>
-                </div>
-              )}
+            <div key={cat.id} className="flex justify-between" style={{ fontSize: 12, padding: "4px 0" }}>
+              <span style={{ color: "#5A6472" }}>{cat.percent}% {cat.name}</span>
+              <span className="num" style={{ fontWeight: 700, color }}>{fmt(spent)} / {fmt(budget)}</span>
             </div>
           );
         })}
