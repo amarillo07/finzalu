@@ -167,6 +167,19 @@ function fmt(n) {
   return (v < 0 ? "-$" : "$") + Math.abs(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// Formats a raw numeric string (e.g. "2000.5") with thousands commas for
+// display inside an editable input, e.g. "2,000.5" — keeps the underlying
+// state as a clean digit string so it's still easy to parse with Number().
+function formatAmountInput(raw) {
+  if (!raw) return "";
+  const [intPart, ...rest] = String(raw).split(".");
+  const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return rest.length ? `${withCommas}.${rest.join("")}` : withCommas;
+}
+function cleanAmountInput(str) {
+  return str.replace(/,/g, "").replace(/[^0-9.]/g, "");
+}
+
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 
 function ym(dateStr) { return dateStr.slice(0, 7); }
@@ -279,14 +292,14 @@ function PrimaryBtn({ children, onClick, disabled, style }) {
   );
 }
 
-function Confirm({ text, onCancel, onConfirm }) {
+function Confirm({ text, onCancel, onConfirm, confirmLabel = "Eliminar" }) {
   return (
     <div className="fixed inset-0 flex items-center justify-center no-print" style={{ zIndex: 60, background: "rgba(10,14,20,0.55)" }} onClick={onCancel}>
       <div onClick={(e) => e.stopPropagation()} className="rounded-2xl p-5" style={{ background: CARD, width: 280, color: INK }}>
         <div style={{ fontSize: 16, marginBottom: 16 }}>{text}</div>
         <div className="flex gap-2">
           <button onClick={onCancel} className="flex-1 rounded-xl py-2" style={{ background: "#F2F3F5", fontWeight: 600, fontSize: 15 }}>Cancelar</button>
-          <button onClick={onConfirm} className="flex-1 rounded-xl py-2" style={{ background: RED, color: "#fff", fontWeight: 600, fontSize: 15 }}>Eliminar</button>
+          <button onClick={onConfirm} className="flex-1 rounded-xl py-2" style={{ background: RED, color: "#fff", fontWeight: 600, fontSize: 15 }}>{confirmLabel}</button>
         </div>
       </div>
     </div>
@@ -319,7 +332,6 @@ export default function FinanzasMX() {
   const [prefillDate, setPrefillDate] = useState(null);
   const [saveNote, setSaveNote] = useState("");
   const [editingTx, setEditingTx] = useState(null); // transaction being edited, or null when adding
-  const [templateTx, setTemplateTx] = useState(null); // prefill for a NEW transaction (from "Registrar" on a concept)
   const [viewModeOpen, setViewModeOpen] = useState(false);
 
   /* ---- load / save ---- */
@@ -377,27 +389,15 @@ export default function FinanzasMX() {
 
   /* ---- category tree mutations ---- */
   function addSubcategory(mainId, name, icon) {
-    setCategories((prev) => prev.map((c) => c.id === mainId ? { ...c, subcategories: [...c.subcategories, { id: uid("sub"), name, icon, concepts: [] }] } : c));
-  }
-  function addConcept(mainId, subId, name, amount, isFixed, periodicity, dueDay, dueWeekday) {
-    setCategories((prev) => prev.map((c) => {
-      if (c.id !== mainId) return c;
-      return { ...c, subcategories: c.subcategories.map((s) => s.id === subId ? { ...s, concepts: [...s.concepts, { id: uid("con"), name, amount: Number(amount) || 0, isFixed: !!isFixed, periodicity: isFixed ? periodicity : null, dueDay: dueDay ? Number(dueDay) : null, dueWeekday: periodicity === "semanal" ? dueWeekday : null }] } : s) };
-    }));
+    setCategories((prev) => prev.map((c) => c.id === mainId ? { ...c, subcategories: [...c.subcategories, { id: uid("sub"), name, icon }] } : c));
   }
   function deleteSub(mainId, subId) {
     setCategories((prev) => prev.map((c) => c.id === mainId ? { ...c, subcategories: c.subcategories.filter((s) => s.id !== subId) } : c));
-  }
-  function deleteConcept(mainId, subId, conId) {
-    setCategories((prev) => prev.map((c) => c.id !== mainId ? c : { ...c, subcategories: c.subcategories.map((s) => s.id !== subId ? s : { ...s, concepts: s.concepts.filter((k) => k.id !== conId) }) }));
   }
   function editSub(mainId, subId, name, icon) {
     setCategories((prev) => prev.map((c) => c.id !== mainId ? c : { ...c, subcategories: c.subcategories.map((s) => s.id === subId ? { ...s, name, icon } : s) }));
     // keep existing transactions' displayed sub-name in sync
     setTransactions((prev) => prev.map((t) => t.subId === subId ? { ...t, subName: name, icon } : t));
-  }
-  function editConcept(mainId, subId, conId, name, amount, isFixed, periodicity, dueDay, dueWeekday) {
-    setCategories((prev) => prev.map((c) => c.id !== mainId ? c : { ...c, subcategories: c.subcategories.map((s) => s.id !== subId ? s : { ...s, concepts: s.concepts.map((k) => k.id === conId ? { ...k, name, amount: Number(amount) || 0, isFixed: !!isFixed, periodicity: isFixed ? periodicity : null, dueDay: dueDay ? Number(dueDay) : null, dueWeekday: periodicity === "semanal" ? dueWeekday : null } : k) }) }));
   }
 
   // Switch to a different financial rule (preset or custom). Subcategories of
@@ -419,6 +419,20 @@ export default function FinanzasMX() {
 
   /* ---- transaction mutations ---- */
   function addTransaction(tx) { setTransactions((prev) => [{ id: uid("tx"), ...tx }, ...prev]); }
+  // Adds the transaction plus, if it's marked recurring, a batch of future
+  // occurrences already generated — so nothing needs to be re-entered by hand
+  // each month. All share the same recurringGroupId.
+  function addTransactionWithRecurrence(tx) {
+    if (!tx.isRecurring) { addTransaction(tx); return; }
+    const groupId = uid("rec");
+    const dates = generateRecurringDates(tx.date, tx.recurrenceType, tx.intervalDays);
+    const batch = dates.map((d) => ({ id: uid("tx"), ...tx, date: d, recurringGroupId: groupId, autoGenerated: d !== tx.date }));
+    setTransactions((prev) => [...batch, ...prev]);
+  }
+  // Removes only the FUTURE occurrences of a recurring series (keeps history intact)
+  function cancelFutureRecurrences(recurringGroupId, fromDateExclusive) {
+    setTransactions((prev) => prev.filter((t) => !(t.recurringGroupId === recurringGroupId && t.date > fromDateExclusive)));
+  }
   function editTransaction(id, tx) { setTransactions((prev) => prev.map((t) => t.id === id ? { ...tx, id } : t)); }
   function deleteTransaction(id) { setTransactions((prev) => prev.filter((t) => t.id !== id)); }
 
@@ -586,13 +600,13 @@ export default function FinanzasMX() {
             profile={profile}
             defaultDate={prefillDate || todayISO()}
             editingTx={editingTx}
-            template={templateTx}
-            onClose={() => { setAddOpen(null); setPrefillDate(null); setEditingTx(null); setTemplateTx(null); }}
-            onSave={(tx, newSub, newConcept) => {
+            onClose={() => { setAddOpen(null); setPrefillDate(null); setEditingTx(null); }}
+            onSave={(tx, newSub) => {
               if (newSub) addSubcategory(tx.mainId, newSub.name, newSub.icon);
-              if (editingTx) editTransaction(editingTx.id, tx); else addTransaction(tx);
-              setAddOpen(null); setPrefillDate(null); setEditingTx(null); setTemplateTx(null);
+              if (editingTx) editTransaction(editingTx.id, tx); else addTransactionWithRecurrence(tx);
+              setAddOpen(null); setPrefillDate(null); setEditingTx(null);
             }}
+            onCancelFutureRecurrences={(groupId, fromDate) => { setConfirmDel({ type: "recurring-future", groupId, fromDate }); setAddOpen(null); setEditingTx(null); }}
             onUpdateIncomeDefault={(amount, periodicity) => setProfile((p) => ({ ...p, incomeAmount: amount, incomePeriodicity: periodicity }))}
             ensureSubFor={ensureSub}
           />
@@ -614,17 +628,10 @@ export default function FinanzasMX() {
           <Sheet title={catManagerCat.name} onClose={() => setCatManagerCat(null)}>
             <CategoryManager
               cat={categories.find((c) => c.id === catManagerCat.id) || catManagerCat}
+              transactions={transactions}
               onAddSub={(name, icon) => addSubcategory(catManagerCat.id, name, icon)}
-              onAddConcept={(subId, name, amount, isFixed, per, dueDay, dueWeekday) => addConcept(catManagerCat.id, subId, name, amount, isFixed, per, dueDay, dueWeekday)}
               onEditSub={(subId, name, icon) => editSub(catManagerCat.id, subId, name, icon)}
-              onEditConcept={(subId, conId, name, amount, isFixed, per, dueDay, dueWeekday) => editConcept(catManagerCat.id, subId, conId, name, amount, isFixed, per, dueDay, dueWeekday)}
               onDeleteSub={(subId) => setConfirmDel({ type: "sub", mainId: catManagerCat.id, subId })}
-              onDeleteConcept={(subId, conId) => setConfirmDel({ type: "con", mainId: catManagerCat.id, subId, conId })}
-              onQuickRegister={(sub, con) => {
-                setTemplateTx({ mainId: catManagerCat.id, subId: sub.id, subName: sub.name, conceptName: con.name, amount: con.amount, icon: sub.icon });
-                setCatManagerCat(null);
-                setAddOpen("expense");
-              }}
             />
           </Sheet>
         )}
@@ -649,12 +656,13 @@ export default function FinanzasMX() {
 
         {confirmDel && (
           <Confirm
-            text="¿Seguro que quieres eliminar esto? No se puede deshacer."
+            text={confirmDel.type === "recurring-future" ? "Esto va a cancelar los pagos futuros de esta suscripción. Los gastos ya pasados no se tocan. ¿Confirmas?" : "¿Seguro que quieres eliminar esto? No se puede deshacer."}
+            confirmLabel={confirmDel.type === "recurring-future" ? "Cancelar futuros" : "Eliminar"}
             onCancel={() => setConfirmDel(null)}
             onConfirm={() => {
               if (confirmDel.type === "tx") deleteTransaction(confirmDel.id);
               if (confirmDel.type === "sub") deleteSub(confirmDel.mainId, confirmDel.subId);
-              if (confirmDel.type === "con") deleteConcept(confirmDel.mainId, confirmDel.subId, confirmDel.conId);
+              if (confirmDel.type === "recurring-future") cancelFutureRecurrences(confirmDel.groupId, confirmDel.fromDate);
               if (confirmDel.type === "goal") setGoals((prev) => prev.filter((g) => g.id !== confirmDel.id));
               setConfirmDel(null);
             }}
@@ -747,7 +755,7 @@ function Onboarding({ onDone }) {
             <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 16, marginTop: 8 }}>Con esto calculamos cuánto te toca por categoría.</p>
             <div className="relative mt-6">
               <span style={{ position: "absolute", left: 16, top: 14, color: "rgba(255,255,255,0.5)" }}>$</span>
-              <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.00" inputMode="decimal" className="w-full rounded-xl" style={{ padding: "14px 16px 14px 30px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 18 }} />
+              <input value={formatAmountInput(amount)} onChange={(e) => setAmount(cleanAmountInput(e.target.value))} placeholder="0.00" inputMode="decimal" className="w-full rounded-xl" style={{ padding: "14px 16px 14px 30px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 18 }} />
             </div>
             <div className="grid grid-cols-2 gap-2 mt-4">
               {["diaria", "semanal", "quincenal", "mensual"].map((p) => (
@@ -897,7 +905,7 @@ function TxRow({ t, onDelete, onEdit }) {
           <div style={{ fontWeight: 800, fontSize: 16, color: t.type === "income" ? GREEN : RED }}>{t.type === "income" ? "+" : "-"}{fmt(t.amount)}</div>
         </div>
         <div>
-          <div style={{ fontWeight: 600, fontSize: 16, color: INK }}>{t.conceptName}</div>
+          <div style={{ fontWeight: 600, fontSize: 16, color: INK }}>{t.conceptName} {t.recurringGroupId && <span title="Pago periódico" style={{ fontSize: 12 }}>🔁</span>}</div>
           <div style={{ fontSize: 13, color: MUTED }}>{t.subName}{t.time ? ` · ${t.time}` : ""} · {t.date}</div>
         </div>
       </div>
@@ -1135,6 +1143,33 @@ function addDays(dateStr, n) {
   const d = new Date(dateStr + "T00:00:00");
   d.setDate(d.getDate() + n);
   return d.toISOString().slice(0, 10);
+}
+function addMonthsClamped(dateStr, n) {
+  const d = new Date(dateStr + "T00:00:00");
+  const day = d.getDate();
+  const target = new Date(d.getFullYear(), d.getMonth() + n, 1);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(day, lastDay));
+  return target.toISOString().slice(0, 10);
+}
+// Builds the list of dates (including the original) for a recurring expense,
+// capped to a sensible horizon so we don't generate thousands of rows.
+function generateRecurringDates(startDate, recurrenceType, intervalDays) {
+  const dates = [startDate];
+  if (recurrenceType === "diaria") {
+    for (let i = 1; i <= 90; i++) dates.push(addDays(startDate, i));
+  } else if (recurrenceType === "semanal") {
+    for (let i = 1; i <= 104; i++) dates.push(addDays(startDate, i * 7));
+  } else if (recurrenceType === "quincenal") {
+    for (let i = 1; i <= 48; i++) dates.push(addDays(startDate, i * 15));
+  } else if (recurrenceType === "mensual") {
+    for (let i = 1; i <= 24; i++) dates.push(addMonthsClamped(startDate, i));
+  } else if (recurrenceType === "personalizado") {
+    const n = Math.max(1, Number(intervalDays) || 30);
+    const count = Math.min(150, Math.floor(730 / n));
+    for (let i = 1; i <= count; i++) dates.push(addDays(startDate, i * n));
+  }
+  return dates;
 }
 function mondayOf(dateStr) {
   const d = new Date(dateStr + "T00:00:00");
@@ -1477,98 +1512,47 @@ function CategoriesScreen({ categories, onOpenCat, spentInCategory, budgetFor })
   );
 }
 
-const WEEKDAY_FULL = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
-
-function conceptScheduleLabel(con) {
-  if (!con.isFixed) return "Monto único";
-  if (con.periodicity === "mensual") return `Fijo · mensual${con.dueDay ? `, día ${con.dueDay}` : ""}`;
-  if (con.periodicity === "quincenal") return `Fijo · quincenal${con.dueDay ? `, días ${con.dueDay} y ${((Number(con.dueDay) + 15 - 1) % 30) + 1}` : ""}`;
-  if (con.periodicity === "semanal") return `Fijo · semanal${con.dueWeekday !== undefined && con.dueWeekday !== null ? `, ${WEEKDAY_FULL[con.dueWeekday]}` : ""}`;
-  if (con.periodicity === "diaria") return "Fijo · diario";
-  return "Fijo";
+function groupSubBreadcrumb(ruleName, subName, transactions, mainId, subId) {
+  const spent = transactions.filter((t) => t.type === "expense" && t.mainId === mainId && t.subId === subId);
+  const byConcept = {};
+  spent.forEach((t) => {
+    const key = t.conceptName.trim().toLowerCase();
+    if (!byConcept[key]) byConcept[key] = { name: t.conceptName, total: 0, count: 0, lastDate: t.date };
+    byConcept[key].total += t.amount;
+    byConcept[key].count += 1;
+    if (t.date > byConcept[key].lastDate) byConcept[key].lastDate = t.date;
+  });
+  return Object.values(byConcept).sort((a, b) => b.total - a.total);
 }
 
-function ConceptScheduleFields({ isFixed, setIsFixed, periodicity, setPeriodicity, dueDay, setDueDay, dueWeekday, setDueWeekday }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex gap-2">
-        <button type="button" onClick={() => setIsFixed(false)} className="flex-1 rounded-lg py-2" style={{ background: !isFixed ? LIME : "#F7F8F9", border: "none", fontWeight: 700, fontSize: 13 }}>Monto único</button>
-        <button type="button" onClick={() => setIsFixed(true)} className="flex-1 rounded-lg py-2" style={{ background: isFixed ? LIME : "#F7F8F9", border: "none", fontWeight: 700, fontSize: 13 }}>Gasto fijo</button>
-      </div>
-      {isFixed && (
-        <>
-          <select value={periodicity} onChange={(e) => setPeriodicity(e.target.value)} className="rounded-lg" style={{ padding: "9px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 14 }}>
-            <option value="diaria">Diaria</option><option value="semanal">Semanal</option><option value="quincenal">Quincenal</option><option value="mensual">Mensual</option>
-          </select>
-          {periodicity === "mensual" && (
-            <input value={dueDay} onChange={(e) => setDueDay(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))} placeholder="Día del mes en que se paga (1-31)" className="rounded-lg" style={{ padding: "9px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 14 }} />
-          )}
-          {periodicity === "quincenal" && (
-            <input value={dueDay} onChange={(e) => setDueDay(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))} placeholder="Primer día de pago (1-15)" className="rounded-lg" style={{ padding: "9px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 14 }} />
-          )}
-          {periodicity === "semanal" && (
-            <div className="flex gap-1">
-              {WEEKDAYS.map((w, i) => (
-                <button type="button" key={i} onClick={() => setDueWeekday(i)} className="flex-1 rounded-lg py-2" style={{ background: dueWeekday === i ? LIME : "#fff", border: "1px solid #E7E9EC", fontWeight: 700, fontSize: 13 }}>{w}</button>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-function CategoryManager({ cat, onAddSub, onAddConcept, onEditSub, onEditConcept, onDeleteSub, onDeleteConcept, onQuickRegister }) {
+function CategoryManager({ cat, transactions, onAddSub, onEditSub, onDeleteSub }) {
   const [newSubName, setNewSubName] = useState("");
   const [newSubIcon, setNewSubIcon] = useState("wallet");
-  const [openSub, setOpenSub] = useState(null);
-  const [conName, setConName] = useState("");
-  const [conAmount, setConAmount] = useState("");
-  const [conFixed, setConFixed] = useState(false);
-  const [conPer, setConPer] = useState("mensual");
-  const [conDueDay, setConDueDay] = useState("");
-  const [conDueWeekday, setConDueWeekday] = useState(0);
+  const [openBreakdown, setOpenBreakdown] = useState(null);
 
   // editing state for renaming an existing subcategory
   const [editSubId, setEditSubId] = useState(null);
   const [editSubName, setEditSubName] = useState("");
   const [editSubIcon, setEditSubIcon] = useState("wallet");
 
-  // editing state for an existing concept
-  const [editCon, setEditCon] = useState(null); // { subId, conId }
-  const [editConName, setEditConName] = useState("");
-  const [editConAmount, setEditConAmount] = useState("");
-  const [editConFixed, setEditConFixed] = useState(false);
-  const [editConPer, setEditConPer] = useState("mensual");
-  const [editConDueDay, setEditConDueDay] = useState("");
-  const [editConDueWeekday, setEditConDueWeekday] = useState(0);
-
   function startEditSub(sub) {
     setEditSubId(sub.id); setEditSubName(sub.name); setEditSubIcon(sub.icon || "wallet");
-    setOpenSub(null); setEditCon(null);
-  }
-  function startEditCon(subId, con) {
-    setEditCon({ subId, conId: con.id }); setEditConName(con.name); setEditConAmount(String(con.amount));
-    setEditConFixed(!!con.isFixed); setEditConPer(con.periodicity || "mensual");
-    setEditConDueDay(con.dueDay ? String(con.dueDay) : ""); setEditConDueWeekday(con.dueWeekday ?? 0);
-    setEditSubId(null);
-  }
-  function resetNewConceptForm() {
-    setConName(""); setConAmount(""); setConFixed(false); setConPer("mensual"); setConDueDay(""); setConDueWeekday(0); setOpenSub(null);
   }
 
   return (
     <div>
       <p style={{ fontSize: 13, color: MUTED, marginBottom: 12, lineHeight: 1.4 }}>
-        Los conceptos son plantillas de referencia — para que un gasto cuente de verdad,
-        dale al botón <b>Registrar</b> junto al concepto (o usa "+ Registrar gasto" desde Inicio).
+        Crea tus subcategorías aquí. Los gastos y su desglose (<b>{cat.name} › Subcategoría › Concepto</b>)
+        se arman solos con lo que registres desde "+ Registrar gasto" — no hace falta definirlos por adelantado.
       </p>
       <div className="flex flex-col gap-3 mb-4">
         {cat.subcategories.map((sub) => {
           const Icon = iconFor(sub.icon);
           const subColor = colorForIcon(sub.icon);
           const isEditingThisSub = editSubId === sub.id;
+          const breakdown = groupSubBreadcrumb(cat.name, sub.name, transactions, cat.id, sub.id);
+          const subTotal = breakdown.reduce((s, b) => s + b.total, 0);
+          const isOpen = openBreakdown === sub.id;
           return (
             <div key={sub.id} className="rounded-xl" style={{ background: "#F7F8F9", padding: 12 }}>
               {isEditingThisSub ? (
@@ -1586,65 +1570,33 @@ function CategoryManager({ cat, onAddSub, onAddConcept, onEditSub, onEditConcept
                 </div>
               ) : (
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                  <button onClick={() => setOpenBreakdown(isOpen ? null : sub.id)} className="flex items-center gap-2" style={{ background: "none", border: "none", textAlign: "left" }}>
                     <div className="rounded-full flex items-center justify-center" style={{ width: 32, height: 32, background: subColor + "22" }}><Icon size={16} color={subColor} /></div>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: INK }}>{sub.name}</div>
-                  </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: INK }}>{sub.name}</div>
+                      <div style={{ fontSize: 12, color: MUTED }}>{cat.name} › {sub.name} {subTotal > 0 && <>· <span className="num">{fmt(subTotal)}</span></>}</div>
+                    </div>
+                  </button>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => { setOpenSub(openSub === sub.id ? null : sub.id); if (openSub !== sub.id) resetNewConceptForm(); }} style={{ background: "none", border: "none", fontSize: 14, color: "#5A6472", fontWeight: 600 }}>{openSub === sub.id ? "Cerrar" : "+ Concepto"}</button>
+                    {isOpen ? <ChevronUp size={16} color={MUTED} /> : <ChevronDown size={16} color={MUTED} />}
                     <button onClick={() => startEditSub(sub)} style={{ background: "none", border: "none" }}><Edit2 size={14} color={MUTED} /></button>
                     <button onClick={() => onDeleteSub(sub.id)} style={{ background: "none", border: "none" }}><Trash2 size={14} color={MUTED} /></button>
                   </div>
                 </div>
               )}
 
-              {sub.concepts.length > 0 && (
-                <div className="mt-2 flex flex-col gap-2">
-                  {sub.concepts.map((con) => {
-                    const isEditingThisCon = editCon && editCon.subId === sub.id && editCon.conId === con.id;
-                    if (isEditingThisCon) {
-                      return (
-                        <div key={con.id} className="flex flex-col gap-2 rounded-lg p-2" style={{ background: "#fff" }}>
-                          <input value={editConName} onChange={(e) => setEditConName(e.target.value)} className="rounded-lg" style={{ padding: "8px 9px", background: "#F7F8F9", border: "1px solid #E7E9EC", fontSize: 14 }} />
-                          <input value={editConAmount} onChange={(e) => setEditConAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="Monto" className="rounded-lg" style={{ padding: "8px 9px", background: "#F7F8F9", border: "1px solid #E7E9EC", fontSize: 14 }} />
-                          <ConceptScheduleFields
-                            isFixed={editConFixed} setIsFixed={setEditConFixed}
-                            periodicity={editConPer} setPeriodicity={setEditConPer}
-                            dueDay={editConDueDay} setDueDay={setEditConDueDay}
-                            dueWeekday={editConDueWeekday} setDueWeekday={setEditConDueWeekday}
-                          />
-                          <div className="flex gap-2">
-                            <button onClick={() => setEditCon(null)} className="flex-1 rounded-lg py-2" style={{ background: "#F7F8F9", border: "none", fontWeight: 600, fontSize: 13 }}>Cancelar</button>
-                            <button onClick={() => { if (editConName.trim()) { onEditConcept(sub.id, con.id, editConName.trim(), editConAmount, editConFixed, editConPer, editConDueDay, editConDueWeekday); setEditCon(null); } }} className="flex-1 rounded-lg py-2" style={{ background: LIME, border: "none", fontWeight: 700, fontSize: 13 }}>Guardar</button>
-                          </div>
-                        </div>
-                      );
-                    }
-                    return (
-                      <div key={con.id} className="flex justify-between items-center" style={{ fontSize: 14, color: "#5A6472" }}>
-                        <span>{con.name} <span style={{ color: MUTED, fontSize: 12 }}>· {conceptScheduleLabel(con)}</span></span>
-                        <div className="flex items-center gap-1">
-                          <span className="num" style={{ fontWeight: 600 }}>{fmt(con.amount)}</span>
-                          <button onClick={() => onQuickRegister(sub, con)} title="Registrar este gasto" style={{ background: LIME, border: "none", borderRadius: 999, padding: "4px 8px", fontSize: 11, fontWeight: 800, color: INK }}>Registrar</button>
-                          <button onClick={() => startEditCon(sub.id, con)} style={{ background: "none", border: "none" }}><Edit2 size={13} color={MUTED} /></button>
-                          <button onClick={() => onDeleteConcept(sub.id, con.id)} style={{ background: "none", border: "none" }}><X size={13} color={MUTED} /></button>
-                        </div>
+              {isOpen && !isEditingThisSub && (
+                <div className="mt-3 flex flex-col gap-1">
+                  {breakdown.length === 0 ? (
+                    <div style={{ fontSize: 13, color: MUTED }}>Sin gastos registrados todavía en {sub.name}.</div>
+                  ) : (
+                    breakdown.map((b) => (
+                      <div key={b.name} className="flex items-center justify-between" style={{ fontSize: 13, color: "#5A6472", padding: "4px 0", borderBottom: "1px dashed #EEF0F3" }}>
+                        <span>{cat.name} › {sub.name} › <b style={{ color: INK }}>{b.name}</b> <span style={{ color: MUTED }}>({b.count})</span></span>
+                        <span className="num" style={{ fontWeight: 700, color: INK }}>{fmt(b.total)}</span>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-              {openSub === sub.id && (
-                <div className="mt-3 flex flex-col gap-2">
-                  <input value={conName} onChange={(e) => setConName(e.target.value)} placeholder="Nombre del concepto (ej. Renta)" className="rounded-lg" style={{ padding: "9px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 14 }} />
-                  <input value={conAmount} onChange={(e) => setConAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="Monto de referencia" className="rounded-lg" style={{ padding: "9px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 14 }} />
-                  <ConceptScheduleFields
-                    isFixed={conFixed} setIsFixed={setConFixed}
-                    periodicity={conPer} setPeriodicity={setConPer}
-                    dueDay={conDueDay} setDueDay={setConDueDay}
-                    dueWeekday={conDueWeekday} setDueWeekday={setConDueWeekday}
-                  />
-                  <button onClick={() => { if (conName.trim()) { onAddConcept(sub.id, conName.trim(), conAmount, conFixed, conPer, conDueDay, conDueWeekday); resetNewConceptForm(); } }} className="rounded-lg py-2" style={{ background: LIME, border: "none", fontWeight: 700, fontSize: 14 }}>Guardar concepto</button>
+                    ))
+                  )}
                 </div>
               )}
             </div>
@@ -1669,7 +1621,7 @@ function CategoryManager({ cat, onAddSub, onAddConcept, onEditSub, onEditConcept
 /* Add transaction sheet                                                    */
 /* ---------------------------------------------------------------------- */
 
-function AddTransactionSheet({ kind, categories, profile, defaultDate, editingTx, template, onClose, onSave, onUpdateIncomeDefault, ensureSubFor }) {
+function AddTransactionSheet({ kind, categories, profile, defaultDate, editingTx, template, onClose, onSave, onCancelFutureRecurrences, onUpdateIncomeDefault, ensureSubFor }) {
   const isEdit = !!editingTx;
   const [type, setType] = useState(editingTx ? editingTx.type : kind); // expense | income
   const [mainId, setMainId] = useState(editingTx ? editingTx.mainId || "" : template ? template.mainId : categories[0]?.id || "");
@@ -1682,6 +1634,9 @@ function AddTransactionSheet({ kind, categories, profile, defaultDate, editingTx
   const [note, setNote] = useState(editingTx ? (editingTx.note || "") : "");
   const [incomeKind, setIncomeKind] = useState(editingTx && editingTx.subName === "Ingreso extra" ? "extra" : "principal");
   const [saveDefault, setSaveDefault] = useState(false);
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceType, setRecurrenceType] = useState("mensual");
+  const [intervalDays, setIntervalDays] = useState("30");
 
   const mainCat = categories.find((c) => c.id === mainId);
   const subs = mainCat ? mainCat.subcategories : [];
@@ -1701,6 +1656,8 @@ function AddTransactionSheet({ kind, categories, profile, defaultDate, editingTx
         type: "expense", amount: Number(amount), date, time,
         mainId, subId: finalSubId || null, subName: finalSubName || "General",
         conceptName: conceptName.trim() || finalSubName || "Gasto", note, icon: currentSub?.icon || "wallet",
+        isRecurring: !isEdit && isRecurring, recurrenceType: isRecurring ? recurrenceType : null,
+        intervalDays: isRecurring && recurrenceType === "personalizado" ? Number(intervalDays) || 30 : null,
       };
       onSave(tx, newSub, null);
     } else {
@@ -1719,7 +1676,7 @@ function AddTransactionSheet({ kind, categories, profile, defaultDate, editingTx
 
       <div className="relative mb-3">
         <span style={{ position: "absolute", left: 14, top: 13, color: MUTED }}>$</span>
-        <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.00" inputMode="decimal" className="w-full rounded-xl" style={{ padding: "12px 14px 12px 28px", background: "#F4F5F7", border: "1px solid #E7E9EC", fontSize: 22, fontWeight: 700, color: INK }} />
+        <input value={formatAmountInput(amount)} onChange={(e) => setAmount(cleanAmountInput(e.target.value))} placeholder="0.00" inputMode="decimal" className="w-full rounded-xl" style={{ padding: "12px 14px 12px 28px", background: "#F4F5F7", border: "1px solid #E7E9EC", fontSize: 22, fontWeight: 700, color: INK }} />
       </div>
 
       {type === "expense" ? (
@@ -1738,6 +1695,48 @@ function AddTransactionSheet({ kind, categories, profile, defaultDate, editingTx
           )}
 
           <TextField label="Concepto (ej. Renta, Comida con amigos)" value={conceptName} onChange={(e) => setConceptName(e.target.value)} placeholder="¿En qué gastaste?" />
+
+          {!isEdit && (
+            <div className="rounded-xl p-3 mb-3" style={{ background: "#F4F5F7" }}>
+              <label className="flex items-start gap-2" style={{ cursor: "pointer" }}>
+                <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} style={{ marginTop: 3 }} />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: INK }}>Pago periódico</div>
+                  <div style={{ fontSize: 13, color: MUTED }}>Márcalo si es un gasto recurrente (renta, luz, suscripciones…) y lo registramos solo cada vez, sin que tengas que volver a meterlo cada mes.</div>
+                </div>
+              </label>
+              {isRecurring && (
+                <div className="mt-3 flex flex-col gap-2">
+                  <div className="flex gap-2 flex-wrap">
+                    {[["diaria","Diaria"],["semanal","Semanal"],["quincenal","Quincenal"],["mensual","Mensual"],["personalizado","Personalizado"]].map(([k, label]) => (
+                      <button key={k} type="button" onClick={() => setRecurrenceType(k)} className="rounded-lg py-2 px-3" style={{ background: recurrenceType === k ? LIME : "#fff", border: "1px solid #E7E9EC", fontWeight: 700, fontSize: 13 }}>{label}</button>
+                    ))}
+                  </div>
+                  {recurrenceType === "personalizado" ? (
+                    <div className="flex items-center gap-2">
+                      <span style={{ fontSize: 14, color: "#5A6472" }}>Se repite cada</span>
+                      <input value={intervalDays} onChange={(e) => setIntervalDays(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))} className="rounded-lg" style={{ width: 60, padding: "8px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 14, textAlign: "center" }} />
+                      <span style={{ fontSize: 14, color: "#5A6472" }}>días</span>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 13, color: MUTED }}>
+                      {recurrenceType === "mensual" && `Se va a repetir el día ${date ? new Date(date + "T00:00:00").getDate() : "—"} de cada mes.`}
+                      {recurrenceType === "quincenal" && "Se repite cada 15 días a partir de la fecha que pongas abajo."}
+                      {recurrenceType === "semanal" && "Se repite cada semana, el mismo día que registres."}
+                      {recurrenceType === "diaria" && "Se repite todos los días."}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {isEdit && editingTx?.recurringGroupId && (
+            <div className="rounded-xl p-3 mb-3 flex items-center justify-between" style={{ background: "#FFF6E0" }}>
+              <div style={{ fontSize: 13, color: "#7A5A00", flex: 1, paddingRight: 8 }}>🔁 Esto es parte de un pago periódico.</div>
+              <button type="button" onClick={() => onCancelFutureRecurrences(editingTx.recurringGroupId, editingTx.date)} style={{ background: "#FFE1A8", border: "none", borderRadius: 999, padding: "6px 10px", fontSize: 12, fontWeight: 800, color: "#7A5A00" }}>Cancelar futuros</button>
+            </div>
+          )}
         </>
       ) : (
         <>
@@ -1815,8 +1814,8 @@ function GoalDetail({ goal, onCreate, onContribute, onDelete }) {
     return (
       <div>
         <TextField label="Nombre de la meta" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Vacaciones" />
-        <TextField label="Monto objetivo" value={targetAmount} onChange={(e) => setTargetAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.00" />
-        <TextField label="¿Ya tienes algo ahorrado? (opcional)" value={initialSaved} onChange={(e) => setInitialSaved(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.00" />
+        <TextField label="Monto objetivo" value={formatAmountInput(targetAmount)} onChange={(e) => setTargetAmount(cleanAmountInput(e.target.value))} placeholder="0.00" />
+        <TextField label="¿Ya tienes algo ahorrado? (opcional)" value={formatAmountInput(initialSaved)} onChange={(e) => setInitialSaved(cleanAmountInput(e.target.value))} placeholder="0.00" />
         <TextField label="Fecha objetivo (opcional)" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
         <div style={{ fontSize: 14, fontWeight: 600, color: "#5A6472", marginBottom: 6 }}>¿Cada cuánto planeas aportar?</div>
         <div className="grid grid-cols-4 gap-2 mb-4">
@@ -1889,7 +1888,7 @@ function GoalDetail({ goal, onCreate, onContribute, onDelete }) {
 
       <div style={{ fontWeight: 700, fontSize: 15, color: INK, marginBottom: 8 }}>Agregar aportación</div>
       <div className="flex gap-2 mb-2">
-        <input value={contribAmount} onChange={(e) => setContribAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="Monto" className="flex-1 rounded-lg" style={{ padding: "10px 12px", background: "#F4F5F7", border: "1px solid #E7E9EC", fontSize: 15 }} />
+        <input value={formatAmountInput(contribAmount)} onChange={(e) => setContribAmount(cleanAmountInput(e.target.value))} placeholder="Monto" className="flex-1 rounded-lg" style={{ padding: "10px 12px", background: "#F4F5F7", border: "1px solid #E7E9EC", fontSize: 15 }} />
         <button onClick={() => { if (Number(contribAmount) > 0) { onContribute(goal.id, contribAmount, contribNote); setContribAmount(""); setContribNote(""); } }} className="rounded-lg px-4" style={{ background: LIME, border: "none", fontWeight: 700, fontSize: 15 }}>Agregar</button>
       </div>
       <input value={contribNote} onChange={(e) => setContribNote(e.target.value)} placeholder="Nota (opcional)" className="w-full rounded-lg mb-4" style={{ padding: "10px 12px", background: "#F4F5F7", border: "1px solid #E7E9EC", fontSize: 15 }} />
@@ -2045,7 +2044,7 @@ function ProfileScreen({ profile, setProfile, saveNote, theme, setTheme }) {
       <div style={{ fontSize: 14, fontWeight: 700, color: c.onBgMuted, margin: "0 0 8px" }}>DATOS</div>
       <div className="rounded-2xl p-4" style={{ background: CARD }}>
         <TextField label="Nombre" value={profile.name} onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))} />
-        <TextField label="Ingreso principal (monto)" value={profile.incomeAmount} onChange={(e) => setProfile((p) => ({ ...p, incomeAmount: Number(e.target.value.replace(/[^0-9.]/g, "")) || 0 }))} />
+        <TextField label="Ingreso principal (monto)" value={formatAmountInput(String(profile.incomeAmount))} onChange={(e) => setProfile((p) => ({ ...p, incomeAmount: Number(cleanAmountInput(e.target.value)) || 0 }))} />
         <div style={{ fontSize: 14, fontWeight: 600, color: "#5A6472", marginBottom: 6 }}>Periodicidad</div>
         <div className="grid grid-cols-2 gap-2 mb-2">
           {["diaria", "semanal", "quincenal", "mensual"].map((p) => (
