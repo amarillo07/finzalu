@@ -327,7 +327,6 @@ export default function FinanzasMX() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
   const [confirmDel, setConfirmDel] = useState(null); // {type,id}
-  const [catManagerCat, setCatManagerCat] = useState(null);
   const [goalDetail, setGoalDetail] = useState(null);
   const [prefillDate, setPrefillDate] = useState(null);
   const [saveNote, setSaveNote] = useState("");
@@ -525,8 +524,10 @@ export default function FinanzasMX() {
 
           {screen === "categories" && (
             <CategoriesScreen
-              categories={categories} onOpenCat={(c) => setCatManagerCat(c)}
+              categories={categories} transactions={transactions}
               spentInCategory={spentInCategory} budgetFor={budgetFor}
+              onAddSub={addSubcategory} onEditSub={editSub}
+              onDeleteSub={(mainId, subId) => setConfirmDel({ type: "sub", mainId, subId })}
             />
           )}
 
@@ -620,18 +621,6 @@ export default function FinanzasMX() {
               onDelete={(id) => setConfirmDel({ type: "tx", id })}
               onEdit={(t) => { setEditingTx(t); setDayDetail(null); setAddOpen(t.type); }}
               onAdd={() => { setPrefillDate(dayDetail); setDayDetail(null); setAddOpen("expense"); }}
-            />
-          </Sheet>
-        )}
-
-        {catManagerCat && (
-          <Sheet title={catManagerCat.name} onClose={() => setCatManagerCat(null)}>
-            <CategoryManager
-              cat={categories.find((c) => c.id === catManagerCat.id) || catManagerCat}
-              transactions={transactions}
-              onAddSub={(name, icon) => addSubcategory(catManagerCat.id, name, icon)}
-              onEditSub={(subId, name, icon) => editSub(catManagerCat.id, subId, name, icon)}
-              onDeleteSub={(subId) => setConfirmDel({ type: "sub", mainId: catManagerCat.id, subId })}
             />
           </Sheet>
         )}
@@ -1492,127 +1481,168 @@ function StatementScreen({ categories, monthLabel, shiftMonth, monthCursor, mont
 /* Categories management                                                    */
 /* ---------------------------------------------------------------------- */
 
-function CategoriesScreen({ categories, onOpenCat, spentInCategory, budgetFor }) {
+function groupSubBreadcrumb(transactions, mainId, subId) {
+  const spent = transactions.filter((t) => t.type === "expense" && t.mainId === mainId && t.subId === subId);
+  const byConcept = {};
+  spent.forEach((t) => {
+    const key = t.conceptName.trim().toLowerCase();
+    if (!byConcept[key]) byConcept[key] = { name: t.conceptName, total: 0, count: 0 };
+    byConcept[key].total += t.amount;
+    byConcept[key].count += 1;
+  });
+  return Object.values(byConcept).sort((a, b) => b.total - a.total);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Categorías — nested folder tree: Regla > Subcategoría > Gastos          */
+/* ---------------------------------------------------------------------- */
+
+function CategoriesScreen({ categories, transactions, spentInCategory, budgetFor, onAddSub, onEditSub, onDeleteSub }) {
   const c = useColors();
+  const [openRules, setOpenRules] = useState({});
+  const [openSubs, setOpenSubs] = useState({});
+  const toggleRule = (id) => setOpenRules((p) => ({ ...p, [id]: !p[id] }));
+  const toggleSub = (id) => setOpenSubs((p) => ({ ...p, [id]: !p[id] }));
+
   return (
     <div>
       <div style={{ color: c.onBg, fontWeight: 700, fontSize: 19, margin: "6px 0 12px" }}>Categorías</div>
       <div className="flex flex-col gap-3">
         {categories.map((cat) => (
-          <button key={cat.id} onClick={() => onOpenCat(cat)} className="rounded-2xl p-4 text-left w-full" style={{ background: CARD, border: "none" }}>
-            <div className="flex items-center justify-between">
-              <div style={{ fontWeight: 700, fontSize: 16, color: INK }}>{cat.percent}% {cat.name}</div>
-              <ChevronRight size={16} color={MUTED} />
-            </div>
-            <div style={{ fontSize: 14, color: MUTED, marginTop: 4 }}>{cat.subcategories.length} subcategoría{cat.subcategories.length !== 1 && "s"} · Presupuesto {fmt(budgetFor(cat))}</div>
-          </button>
+          <RuleFolder
+            key={cat.id}
+            cat={cat}
+            transactions={transactions}
+            spent={spentInCategory(cat.id)}
+            budget={budgetFor(cat)}
+            isOpen={!!openRules[cat.id]}
+            onToggle={() => toggleRule(cat.id)}
+            openSubs={openSubs}
+            toggleSub={toggleSub}
+            onAddSub={(name, icon) => onAddSub(cat.id, name, icon)}
+            onEditSub={(subId, name, icon) => onEditSub(cat.id, subId, name, icon)}
+            onDeleteSub={(subId) => onDeleteSub(cat.id, subId)}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function groupSubBreadcrumb(ruleName, subName, transactions, mainId, subId) {
-  const spent = transactions.filter((t) => t.type === "expense" && t.mainId === mainId && t.subId === subId);
-  const byConcept = {};
-  spent.forEach((t) => {
-    const key = t.conceptName.trim().toLowerCase();
-    if (!byConcept[key]) byConcept[key] = { name: t.conceptName, total: 0, count: 0, lastDate: t.date };
-    byConcept[key].total += t.amount;
-    byConcept[key].count += 1;
-    if (t.date > byConcept[key].lastDate) byConcept[key].lastDate = t.date;
-  });
-  return Object.values(byConcept).sort((a, b) => b.total - a.total);
-}
-
-function CategoryManager({ cat, transactions, onAddSub, onEditSub, onDeleteSub }) {
+function RuleFolder({ cat, transactions, spent, budget, isOpen, onToggle, openSubs, toggleSub, onAddSub, onEditSub, onDeleteSub }) {
   const [newSubName, setNewSubName] = useState("");
   const [newSubIcon, setNewSubIcon] = useState("wallet");
-  const [openBreakdown, setOpenBreakdown] = useState(null);
-
-  // editing state for renaming an existing subcategory
-  const [editSubId, setEditSubId] = useState(null);
-  const [editSubName, setEditSubName] = useState("");
-  const [editSubIcon, setEditSubIcon] = useState("wallet");
-
-  function startEditSub(sub) {
-    setEditSubId(sub.id); setEditSubName(sub.name); setEditSubIcon(sub.icon || "wallet");
-  }
+  const [addingNew, setAddingNew] = useState(false);
+  const color = statusColor(spent, budget);
 
   return (
-    <div>
-      <p style={{ fontSize: 13, color: MUTED, marginBottom: 12, lineHeight: 1.4 }}>
-        Crea tus subcategorías aquí. Los gastos y su desglose (<b>{cat.name} › Subcategoría › Concepto</b>)
-        se arman solos con lo que registres desde "+ Registrar gasto" — no hace falta definirlos por adelantado.
-      </p>
-      <div className="flex flex-col gap-3 mb-4">
-        {cat.subcategories.map((sub) => {
-          const Icon = iconFor(sub.icon);
-          const subColor = colorForIcon(sub.icon);
-          const isEditingThisSub = editSubId === sub.id;
-          const breakdown = groupSubBreadcrumb(cat.name, sub.name, transactions, cat.id, sub.id);
-          const subTotal = breakdown.reduce((s, b) => s + b.total, 0);
-          const isOpen = openBreakdown === sub.id;
-          return (
-            <div key={sub.id} className="rounded-xl" style={{ background: "#F7F8F9", padding: 12 }}>
-              {isEditingThisSub ? (
-                <div className="flex flex-col gap-2">
-                  <input value={editSubName} onChange={(e) => setEditSubName(e.target.value)} className="rounded-lg" style={{ padding: "9px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 15 }} />
-                  <div className="flex gap-2 flex-wrap">
-                    {ICONS.map(({ key, Icon: I, color }) => (
-                      <button key={key} onClick={() => setEditSubIcon(key)} className="rounded-full flex items-center justify-center" style={{ width: 32, height: 32, background: editSubIcon === key ? LIME : color + "22", border: "none" }}><I size={15} color={editSubIcon === key ? INK : color} /></button>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setEditSubId(null)} className="flex-1 rounded-lg py-2" style={{ background: "#fff", border: "none", fontWeight: 600, fontSize: 14 }}>Cancelar</button>
-                    <button onClick={() => { if (editSubName.trim()) { onEditSub(sub.id, editSubName.trim(), editSubIcon); setEditSubId(null); } }} className="flex-1 rounded-lg py-2" style={{ background: LIME, border: "none", fontWeight: 700, fontSize: 14 }}>Guardar</button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <button onClick={() => setOpenBreakdown(isOpen ? null : sub.id)} className="flex items-center gap-2" style={{ background: "none", border: "none", textAlign: "left" }}>
-                    <div className="rounded-full flex items-center justify-center" style={{ width: 32, height: 32, background: subColor + "22" }}><Icon size={16} color={subColor} /></div>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 15, color: INK }}>{sub.name}</div>
-                      <div style={{ fontSize: 12, color: MUTED }}>{cat.name} › {sub.name} {subTotal > 0 && <>· <span className="num">{fmt(subTotal)}</span></>}</div>
-                    </div>
-                  </button>
-                  <div className="flex items-center gap-2">
-                    {isOpen ? <ChevronUp size={16} color={MUTED} /> : <ChevronDown size={16} color={MUTED} />}
-                    <button onClick={() => startEditSub(sub)} style={{ background: "none", border: "none" }}><Edit2 size={14} color={MUTED} /></button>
-                    <button onClick={() => onDeleteSub(sub.id)} style={{ background: "none", border: "none" }}><Trash2 size={14} color={MUTED} /></button>
-                  </div>
-                </div>
-              )}
+    <div className="rounded-2xl overflow-hidden" style={{ background: CARD }}>
+      <button onClick={onToggle} className="w-full flex items-center justify-between p-4" style={{ background: "none", border: "none", textAlign: "left" }}>
+        <div className="flex items-center gap-2">
+          {isOpen ? <ChevronDown size={18} color={MUTED} /> : <ChevronRight size={18} color={MUTED} />}
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: INK }}>{cat.percent}% {cat.name}</div>
+            <div style={{ fontSize: 13, color: MUTED }}>{cat.subcategories.length} subcategoría{cat.subcategories.length !== 1 && "s"}</div>
+          </div>
+        </div>
+        <div className="num" style={{ fontWeight: 700, fontSize: 14, color }}>{fmt(spent)} / {fmt(budget)}</div>
+      </button>
 
-              {isOpen && !isEditingThisSub && (
-                <div className="mt-3 flex flex-col gap-1">
-                  {breakdown.length === 0 ? (
-                    <div style={{ fontSize: 13, color: MUTED }}>Sin gastos registrados todavía en {sub.name}.</div>
-                  ) : (
-                    breakdown.map((b) => (
-                      <div key={b.name} className="flex items-center justify-between" style={{ fontSize: 13, color: "#5A6472", padding: "4px 0", borderBottom: "1px dashed #EEF0F3" }}>
-                        <span>{cat.name} › {sub.name} › <b style={{ color: INK }}>{b.name}</b> <span style={{ color: MUTED }}>({b.count})</span></span>
-                        <span className="num" style={{ fontWeight: 700, color: INK }}>{fmt(b.total)}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
+      {isOpen && (
+        <div style={{ padding: "0 12px 12px" }}>
+          <div className="flex flex-col gap-2">
+            {cat.subcategories.map((sub) => (
+              <SubFolder
+                key={sub.id}
+                cat={cat} sub={sub} transactions={transactions}
+                isOpen={!!openSubs[sub.id]}
+                onToggle={() => toggleSub(sub.id)}
+                onEditSub={onEditSub}
+                onDeleteSub={onDeleteSub}
+              />
+            ))}
+            {cat.subcategories.length === 0 && <EmptyNote text="Sin subcategorías todavía." />}
+          </div>
+
+          {addingNew ? (
+            <div className="rounded-xl mt-2 p-3" style={{ background: "#F7F8F9" }}>
+              <input value={newSubName} onChange={(e) => setNewSubName(e.target.value)} placeholder="Ej. CASA, SUPER, AUTO…" className="w-full rounded-lg mb-2" style={{ padding: "10px 12px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 15 }} />
+              <div className="flex gap-2 flex-wrap mb-2">
+                {ICONS.map(({ key, Icon, color: c2 }) => (
+                  <button key={key} onClick={() => setNewSubIcon(key)} className="rounded-full flex items-center justify-center" style={{ width: 32, height: 32, background: newSubIcon === key ? LIME : c2 + "22", border: "none" }}><Icon size={15} color={newSubIcon === key ? INK : c2} /></button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => { setAddingNew(false); setNewSubName(""); }} className="flex-1 rounded-lg py-2" style={{ background: "#fff", border: "none", fontWeight: 600, fontSize: 14 }}>Cancelar</button>
+                <button onClick={() => { if (newSubName.trim()) { onAddSub(newSubName.trim(), newSubIcon); setNewSubName(""); setAddingNew(false); } }} className="flex-1 rounded-lg py-2" style={{ background: LIME, border: "none", fontWeight: 700, fontSize: 14 }}>Guardar</button>
+              </div>
             </div>
-          );
-        })}
-        {cat.subcategories.length === 0 && <EmptyNote text="Sin subcategorías todavía." />}
-      </div>
+          ) : (
+            <button onClick={() => setAddingNew(true)} className="w-full rounded-xl mt-2 py-2" style={{ background: "#F7F8F9", border: "none", fontWeight: 700, fontSize: 14, color: "#5A6472" }}>+ Nueva subcategoría en {cat.name}</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
-      <div style={{ fontWeight: 700, fontSize: 15, color: INK, marginBottom: 8 }}>Nueva subcategoría</div>
-      <input value={newSubName} onChange={(e) => setNewSubName(e.target.value)} placeholder="Ej. CASA, SUPER, AUTO…" className="w-full rounded-lg mb-2" style={{ padding: "10px 12px", background: "#F4F5F7", border: "1px solid #E7E9EC", fontSize: 15 }} />
-      <div className="flex gap-2 flex-wrap mb-3">
-        {ICONS.map(({ key, Icon, color }) => (
-          <button key={key} onClick={() => setNewSubIcon(key)} className="rounded-full flex items-center justify-center" style={{ width: 34, height: 34, background: newSubIcon === key ? LIME : color + "22", border: "none" }}><Icon size={16} color={newSubIcon === key ? INK : color} /></button>
-        ))}
-      </div>
-      <PrimaryBtn onClick={() => { if (newSubName.trim()) { onAddSub(newSubName.trim(), newSubIcon); setNewSubName(""); } }}>+ Agregar subcategoría</PrimaryBtn>
+function SubFolder({ cat, sub, transactions, isOpen, onToggle, onEditSub, onDeleteSub }) {
+  const Icon = iconFor(sub.icon);
+  const subColor = colorForIcon(sub.icon);
+  const breakdown = groupSubBreadcrumb(transactions, cat.id, sub.id);
+  const subTotal = breakdown.reduce((s, b) => s + b.total, 0);
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(sub.name);
+  const [editIcon, setEditIcon] = useState(sub.icon || "wallet");
+
+  return (
+    <div className="rounded-xl" style={{ background: "#F7F8F9" }}>
+      {editing ? (
+        <div className="p-3 flex flex-col gap-2">
+          <input value={editName} onChange={(e) => setEditName(e.target.value)} className="rounded-lg" style={{ padding: "9px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 15 }} />
+          <div className="flex gap-2 flex-wrap">
+            {ICONS.map(({ key, Icon: I, color }) => (
+              <button key={key} onClick={() => setEditIcon(key)} className="rounded-full flex items-center justify-center" style={{ width: 30, height: 30, background: editIcon === key ? LIME : color + "22", border: "none" }}><I size={14} color={editIcon === key ? INK : color} /></button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setEditing(false)} className="flex-1 rounded-lg py-2" style={{ background: "#fff", border: "none", fontWeight: 600, fontSize: 13 }}>Cancelar</button>
+            <button onClick={() => { if (editName.trim()) { onEditSub(sub.id, editName.trim(), editIcon); setEditing(false); } }} className="flex-1 rounded-lg py-2" style={{ background: LIME, border: "none", fontWeight: 700, fontSize: 13 }}>Guardar</button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between p-3">
+          <button onClick={onToggle} className="flex items-center gap-2" style={{ background: "none", border: "none", textAlign: "left", flex: 1 }}>
+            {isOpen ? <ChevronDown size={15} color={MUTED} /> : <ChevronRight size={15} color={MUTED} />}
+            <div className="rounded-full flex items-center justify-center" style={{ width: 30, height: 30, background: subColor + "22" }}><Icon size={15} color={subColor} /></div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: INK }}>{sub.name}</div>
+              {subTotal > 0 && <div className="num" style={{ fontSize: 12, color: MUTED }}>{fmt(subTotal)}</div>}
+            </div>
+          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setEditing(true)} style={{ background: "none", border: "none" }}><Edit2 size={14} color={MUTED} /></button>
+            <button onClick={() => onDeleteSub(sub.id)} style={{ background: "none", border: "none" }}><Trash2 size={14} color={MUTED} /></button>
+          </div>
+        </div>
+      )}
+
+      {isOpen && !editing && (
+        <div style={{ padding: "0 12px 12px 40px" }}>
+          {breakdown.length === 0 ? (
+            <div style={{ fontSize: 13, color: MUTED }}>Sin gastos registrados todavía en {sub.name}.</div>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {breakdown.map((b) => (
+                <div key={b.name} className="flex items-center justify-between" style={{ fontSize: 13, color: "#5A6472", padding: "5px 8px", background: "#fff", borderRadius: 8 }}>
+                  <span>{b.name} <span style={{ color: MUTED, fontSize: 12 }}>({b.count})</span></span>
+                  <span className="num" style={{ fontWeight: 700, color: INK }}>{fmt(b.total)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
