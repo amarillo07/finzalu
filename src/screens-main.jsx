@@ -2,8 +2,9 @@ import React, { useState } from "react";
 import { TrendingDown, TrendingUp, ChevronLeft, ChevronRight, ChevronDown, Printer, Plus } from "lucide-react";
 import {
   Panel, SectionHeader, Chip, PrimaryBtn, AnimatedNumber, ProgressBar, EmptyNote, MonthSwitcher,
-  CatIcon, TxRow, IconBtn, T,
+  CatIcon, TxRow, IconBtn, T, useTheme, Donut,
 } from "./ui";
+import { mix } from "./theme";
 import {
   fmt, fmt0, fmtShort, nice, MONTHS, WEEKDAYS, ym, todayISO, addDays, mondayOf, fmtDayLong,
   getMonthGrid, getViewPeriod, budgetStatus,
@@ -120,6 +121,8 @@ export function HomeScreen({
 
 export function StatsScreen({ categories, ruleFilter, setRuleFilter, monthLabel, shiftMonth, monthExpenses, transactions, monthCursor, spentInCategory, budgetFor, ruleInfo }) {
   const [openCat, setOpenCat] = useState(null);
+  const theme = useTheme();
+  const seriesColors = theme.series;
   const rulesShown = ruleFilter === "todas" ? categories : categories.filter((c) => c.id === ruleFilter);
   const expenses = monthExpenses.filter((t) => ruleFilter === "todas" || t.mainId === ruleFilter);
   const total = expenses.reduce((s, t) => s + t.amount, 0);
@@ -139,6 +142,25 @@ export function StatsScreen({ categories, ruleFilter, setRuleFilter, monthLabel,
     g.items[ik] = (g.items[ik] || 0) + t.amount;
   });
   const catRows = Object.values(byCat).sort((a, b) => b.total - a.total);
+
+  // Donut: by rule when showing all; by category inside one rule.
+  // Color follows the entity (its position in the rule), never its rank.
+  let donutSegments;
+  if (ruleFilter === "todas") {
+    donutSegments = categories.map((c) => ({ key: c.id, label: nice(c.name), value: spentInCategory(c.id), color: ruleInfo(c.id).color })).filter((s) => s.value > 0);
+  } else {
+    const rule = categories.find((c) => c.id === ruleFilter);
+    const order = (subId) => { const i = rule ? rule.subcategories.findIndex((s) => s.id === subId) : -1; return i < 0 ? 99 : i; };
+    const rows = catRows.map((g) => ({ ...g, idx: order(g.key.split("|")[1]) }));
+    const top = rows.slice(0, 5), rest = rows.slice(5);
+    // Shades of the rule's own color: darkest = first category of the rule
+    const base = seriesColors[categories.findIndex((c) => c.id === ruleFilter) % seriesColors.length];
+    const steps = [0, 0.28, 0.48, 0.64, 0.76];
+    const shade = (idx) => mix(base, theme.surface, steps[Math.min(idx, steps.length - 1)]);
+    const ranked = [...top].sort((a, b) => a.idx - b.idx).map((g) => g.key);
+    donutSegments = top.map((g) => ({ key: g.key, label: g.name, value: g.total, color: shade(ranked.indexOf(g.key)) }));
+    if (rest.length) donutSegments.push({ key: "otros", label: `Otras (${rest.length})`, value: rest.reduce((s, g) => s + g.total, 0), color: "var(--muted)" });
+  }
   const maxCat = catRows[0]?.total || 1;
 
   // Last 6 months ending at the selected month
@@ -164,7 +186,7 @@ export function StatsScreen({ categories, ruleFilter, setRuleFilter, monthLabel,
   return (
     <div>
       <MonthSwitcher label={monthLabel} onPrev={() => shiftMonth(-1)} onNext={() => shiftMonth(1)} />
-      <div className="flex gap-2 overflow-x-auto no-scrollbar" style={{ margin: "14px -20px 0", padding: "2px 20px" }}>
+      <div data-noswipe className="flex gap-2 overflow-x-auto no-scrollbar" style={{ margin: "14px -20px 0", padding: "2px 20px" }}>
         <Chip active={ruleFilter === "todas"} onClick={() => setRuleFilter("todas")}>Todas</Chip>
         {categories.map((c) => <Chip key={c.id} active={ruleFilter === c.id} onClick={() => setRuleFilter(c.id)} color={ruleInfo(c.id).color}>{nice(c.name)}</Chip>)}
       </div>
@@ -191,6 +213,15 @@ export function StatsScreen({ categories, ruleFilter, setRuleFilter, monthLabel,
           );
         })}
       </Panel>
+
+      {expenses.length > 0 && (
+        <>
+          <SectionHeader title="¿Cómo se reparte tu gasto?" hint={ruleFilter === "todas" ? "Por regla. Toca un color para ver su detalle." : `Por categoría de ${nice(ruleInfo(ruleFilter).name).toLowerCase()}. Toca un color para ver su detalle.`} />
+          <Panel pad="18px 14px 8px">
+            <Donut key={ruleFilter + monthLabel} segments={donutSegments} centerLabel="Total gastado" format={fmt0} />
+          </Panel>
+        </>
+      )}
 
       <SectionHeader title="¿En qué se fue tu dinero?" hint={catRows.length ? `Total ${fmt0(total)}. Toca una categoría para ver el detalle.` : null} />
       <Panel pad="4px 14px">
@@ -314,7 +345,7 @@ export function CalendarScreen({ monthCursor, shiftMonth, monthLabel, monthExpen
       </Panel>
       <Panel style={{ marginTop: 12 }} className="flex items-center justify-between">
         <span style={{ fontWeight: 600 }}>Total del mes</span>
-        <AnimatedNumber value={monthTotal} style={{ fontSize: T.title, fontWeight: 700 }} />
+        <AnimatedNumber value={monthTotal} format={(v) => "−" + fmt(v)} style={{ fontSize: T.title, fontWeight: 700, color: "var(--bad)" }} />
       </Panel>
     </div>
   );
@@ -327,7 +358,7 @@ export function DayDetail({ transactions, onOpenTx, onAdd, ruleInfo }) {
       {transactions.length > 0 ? (
         <>
           <div>{transactions.map((t) => <TxRow key={t.id} t={t} onClick={() => onOpenTx(t)} ruleName={ruleInfo(t.mainId).name} ruleColor={ruleInfo(t.mainId).color} />)}</div>
-          <div className="flex justify-between" style={{ fontWeight: 650, padding: "14px 4px", borderTop: "1px solid var(--faint)" }}><span>Total del día</span><span className="num">{fmt(total)}</span></div>
+          <div className="flex justify-between" style={{ fontWeight: 650, padding: "14px 4px", borderTop: "1px solid var(--faint)" }}><span>Total del día</span><span className="num" style={{ color: "var(--bad)" }}>−{fmt(total)}</span></div>
         </>
       ) : <EmptyNote text="No registraste gastos este día." />}
       <PrimaryBtn onClick={onAdd}>Agregar gasto en este día</PrimaryBtn>
@@ -343,7 +374,7 @@ function TotalStrip({ label, value }) {
   return (
     <div className="flex items-center justify-between" style={{ padding: "4px 6px 12px" }}>
       <span style={{ color: "var(--muted)", fontSize: T.small, fontWeight: 600 }}>{label}</span>
-      <AnimatedNumber value={value} style={{ fontSize: T.title, fontWeight: 700 }} />
+      <AnimatedNumber value={value} format={(v) => "−" + fmt(v)} style={{ fontSize: T.title, fontWeight: 700, color: "var(--bad)" }} />
     </div>
   );
 }
@@ -355,7 +386,7 @@ function DayGroup({ date, items, onOpenTx, onAdd, ruleInfo }) {
       <div className="flex items-center justify-between" style={{ padding: "2px 4px 4px" }}>
         <div style={{ fontWeight: 650, fontSize: T.small }}>{fmtDayLong(date)}</div>
         <div className="flex items-center gap-2">
-          {total > 0 && <span className="num" style={{ fontWeight: 650, fontSize: T.small }}>{fmt0(total)}</span>}
+          {total > 0 && <span className="num" style={{ fontWeight: 650, fontSize: T.small, color: "var(--bad)" }}>−{fmt0(total)}</span>}
           <button onClick={() => onAdd(date)} aria-label="Agregar gasto en este día" className="press flex items-center justify-center" style={{ width: 32, height: 32, borderRadius: 999, background: "var(--chip)", border: "none" }}><Plus size={16} /></button>
         </div>
       </div>
@@ -440,14 +471,19 @@ export function LogScreen({ transactions, onAdd, onOpenTx, ruleInfo }) {
 /* Estado de cuenta                                                         */
 /* ---------------------------------------------------------------------- */
 
+
 export function StatementScreen({ categories, monthLabel, shiftMonth, monthCursor, monthExpenses, totalIncomeMonth, totalSpentMonth, budgetFor, spentInCategory, ruleInfo }) {
+  const theme = useTheme();
   const [collapsed, setCollapsed] = useState({});
   const weeks = getMonthGrid(monthCursor.y, monthCursor.m).map((week, wi) => {
     const days = week.filter(Boolean).map((d) => `${monthCursor.y}-${String(monthCursor.m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
     const items = monthExpenses.filter((t) => days.includes(t.date)).sort((a, b) => (a.date + (a.time || "")).localeCompare(b.date + (b.time || "")));
-    return { key: "w" + wi, index: wi + 1, items, total: items.reduce((s, t) => s + t.amount, 0), first: days[0], last: days[days.length - 1] };
+    const byDay = [];
+    items.forEach((t) => { const last = byDay[byDay.length - 1]; if (last && last.date === t.date) last.items.push(t); else byDay.push({ date: t.date, items: [t] }); });
+    return { key: "w" + wi, index: wi + 1, byDay, count: items.length, total: items.reduce((s, t) => s + t.amount, 0), first: days[0], last: days[days.length - 1] };
   }).filter((w) => w.first);
   const balance = totalIncomeMonth - totalSpentMonth;
+  const spentShare = totalIncomeMonth > 0 ? Math.min(100, (totalSpentMonth / totalIncomeMonth) * 100) : totalSpentMonth > 0 ? 100 : 0;
 
   return (
     <div>
@@ -455,11 +491,25 @@ export function StatementScreen({ categories, monthLabel, shiftMonth, monthCurso
       <h1 style={{ fontSize: T.h1, fontWeight: 700, margin: "18px 4px 14px", letterSpacing: "-0.02em" }}>Estado de cuenta</h1>
 
       <Panel>
-        <div className="flex justify-between" style={{ padding: "4px 0" }}><span style={{ color: "var(--muted)" }}>Ingresos</span><span className="num" style={{ fontWeight: 650, color: "var(--good)" }}>{fmt(totalIncomeMonth)}</span></div>
-        <div className="flex justify-between" style={{ padding: "4px 0" }}><span style={{ color: "var(--muted)" }}>Gastos</span><span className="num" style={{ fontWeight: 650 }}>{fmt(totalSpentMonth)}</span></div>
-        <div className="flex justify-between" style={{ marginTop: 8, paddingTop: 10, borderTop: "1px solid var(--faint)" }}>
+        <div className="flex gap-3">
+          <div style={{ flex: 1, padding: 12, borderRadius: 18, background: "var(--good-soft)" }}>
+            <div style={{ fontSize: T.cap, fontWeight: 600, color: "var(--good)" }}>Ingresos</div>
+            <div className="num" style={{ fontSize: T.body, fontWeight: 700, color: "var(--good)", marginTop: 2 }}>+{fmt(totalIncomeMonth)}</div>
+          </div>
+          <div style={{ flex: 1, padding: 12, borderRadius: 18, background: "var(--bad-soft)" }}>
+            <div style={{ fontSize: T.cap, fontWeight: 600, color: "var(--bad)" }}>Gastos</div>
+            <div className="num" style={{ fontSize: T.body, fontWeight: 700, color: "var(--bad)", marginTop: 2 }}>−{fmt(totalSpentMonth)}</div>
+          </div>
+        </div>
+        <div style={{ margin: "14px 2px 6px", height: 8, borderRadius: 4, background: "var(--good)", overflow: "hidden", opacity: totalIncomeMonth > 0 ? 1 : 0.25 }}>
+          <div className="bar-fill" style={{ height: 8, width: `${spentShare}%`, background: "var(--bad)", borderRight: spentShare < 100 ? "2px solid var(--glass-strong)" : "none" }} />
+        </div>
+        <div className="num" style={{ fontSize: T.cap, color: "var(--muted)", margin: "0 2px" }}>
+          {totalIncomeMonth > 0 ? `Gastaste el ${Math.round((totalSpentMonth / totalIncomeMonth) * 100)}% de lo que recibiste` : "Aún no registras ingresos este mes"}
+        </div>
+        <div className="flex justify-between items-baseline" style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--faint)" }}>
           <span style={{ fontWeight: 650 }}>Balance</span>
-          <span className="num" style={{ fontWeight: 700, fontSize: T.title, color: balance < 0 ? "var(--bad)" : "var(--text)" }}>{fmt(balance)}</span>
+          <span className="num" style={{ fontWeight: 700, fontSize: T.title, color: balance < 0 ? "var(--bad)" : "var(--good)" }}>{balance < 0 ? "−" : "+"}{fmt(Math.abs(balance))}</span>
         </div>
       </Panel>
 
@@ -467,36 +517,61 @@ export function StatementScreen({ categories, monthLabel, shiftMonth, monthCurso
       <Panel pad="4px 16px">
         {categories.map((cat) => {
           const spent = spentInCategory(cat.id), budget = budgetFor(cat);
+          const c = ruleInfo(cat.id).color;
           return (
-            <div key={cat.id} className="hairline flex justify-between" style={{ padding: "12px 0", fontSize: T.small }}>
-              <span className="flex items-center gap-2"><span style={{ width: 8, height: 8, borderRadius: 4, background: ruleInfo(cat.id).color }} />{nice(cat.name)} <span style={{ color: "var(--muted)" }}>{cat.percent}%</span></span>
-              <span className="num" style={{ fontWeight: 650, color: budgetStatus(spent, budget).color }}>{fmt0(spent)} <span style={{ color: "var(--muted)", fontWeight: 500 }}>de {fmt0(budget)}</span></span>
+            <div key={cat.id} className="hairline" style={{ padding: "12px 0" }}>
+              <div className="flex justify-between" style={{ fontSize: T.small, marginBottom: 7 }}>
+                <span className="flex items-center gap-2" style={{ fontWeight: 600 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: c }} />{nice(cat.name)} <span style={{ color: "var(--muted)", fontWeight: 500 }}>{cat.percent}%</span></span>
+                <span className="num" style={{ fontWeight: 650, color: budgetStatus(spent, budget).color }}>{fmt0(spent)} <span style={{ color: "var(--muted)", fontWeight: 500 }}>de {fmt0(budget)}</span></span>
+              </div>
+              <ProgressBar value={spent} max={budget} color={c} height={5} />
             </div>
           );
         })}
       </Panel>
 
-      <SectionHeader title="Detalle por semana" />
-      {weeks.map((w) => {
+      <SectionHeader title="Detalle por semana" hint="La barra de color de cada gasto indica su regla" />
+      {weeks.map((w, wi) => {
         const isC = collapsed[w.key];
+        const wc = theme.series[wi % theme.series.length];
         return (
-          <Panel key={w.key} pad="4px 14px" style={{ marginBottom: 10 }}>
-            <button onClick={() => setCollapsed((p) => ({ ...p, [w.key]: !p[w.key] }))} className="w-full flex items-center justify-between" style={{ background: "none", border: "none", padding: "12px 2px" }} aria-expanded={!isC}>
-              <span style={{ fontWeight: 650 }}>Semana {w.index} <span style={{ fontWeight: 500, color: "var(--muted)", fontSize: T.small }}>del {Number(w.first.slice(8, 10))} al {Number(w.last.slice(8, 10))}</span></span>
-              <span className="flex items-center gap-2"><span className="num" style={{ fontWeight: 650 }}>{fmt0(w.total)}</span><ChevronDown size={16} className="chev" style={{ transform: isC ? "rotate(-90deg)" : "none" }} /></span>
+          <Panel key={w.key} pad={0} style={{ marginBottom: 12, overflow: "hidden", position: "relative" }}>
+            <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 5, background: wc }} />
+            <button onClick={() => setCollapsed((p) => ({ ...p, [w.key]: !p[w.key] }))} className="w-full flex items-center justify-between" style={{ background: "none", border: "none", padding: "14px 16px 14px 20px" }} aria-expanded={!isC}>
+              <span className="flex items-center gap-2">
+                <span style={{ padding: "4px 10px", borderRadius: 999, background: wc + "26", color: theme.ink(wc), fontWeight: 700, fontSize: T.cap }}>Semana {w.index}</span>
+                <span style={{ color: "var(--muted)", fontSize: T.small }}>del {Number(w.first.slice(8, 10))} al {Number(w.last.slice(8, 10))}</span>
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="num" style={{ fontWeight: 650, color: w.total > 0 ? "var(--bad)" : "var(--muted)" }}>{w.total > 0 ? "−" : ""}{fmt0(w.total)}</span>
+                <ChevronDown size={16} className="chev" style={{ transform: isC ? "rotate(-90deg)" : "none" }} />
+              </span>
             </button>
             {!isC && (
-              <div className="expand" style={{ paddingBottom: 8 }}>
-                {w.items.length === 0 ? <div style={{ fontSize: T.small, color: "var(--muted)", padding: "0 2px 6px" }}>Sin gastos</div> : w.items.map((t) => (
-                  <div key={t.id} className="flex justify-between gap-3" style={{ padding: "8px 2px", borderTop: "1px solid var(--faint)" }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: T.small }}>{t.conceptName}</div>
-                      <div style={{ fontSize: T.cap, color: "var(--muted)", marginTop: 2 }}>{fmtDayLong(t.date)}, {nice(ruleInfo(t.mainId).name)} › {t.subName}{t.itemName ? ` › ${t.itemName}` : ""}</div>
-                      {t.note && <div style={{ fontSize: T.cap, color: "var(--muted)", fontStyle: "italic", marginTop: 2 }}>“{t.note}”</div>}
+              <div className="expand" style={{ padding: "0 16px 12px 20px" }}>
+                {w.count === 0 && <div style={{ fontSize: T.small, color: "var(--muted)", padding: "0 0 4px" }}>Sin gastos esta semana</div>}
+                {w.byDay.map((d) => (
+                  <div key={d.date} style={{ marginBottom: 6 }}>
+                    <div className="flex items-center gap-2" style={{ fontSize: T.cap, fontWeight: 700, color: theme.ink(wc), padding: "8px 0 4px", borderTop: `1px dashed ${wc}55` }}>
+                      <span style={{ width: 6, height: 6, borderRadius: 3, background: wc }} />{fmtDayLong(d.date)}
                     </div>
-                    <span className="num" style={{ fontWeight: 650, fontSize: T.small, whiteSpace: "nowrap" }}>{fmt(t.amount)}</span>
+                    {d.items.map((t) => (
+                      <div key={t.id} className="flex justify-between gap-3" style={{ padding: "7px 0 7px 10px", borderLeft: `3px solid ${ruleInfo(t.mainId).color}`, marginLeft: 1, marginBottom: 4, borderRadius: 2 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: T.small }}>{t.conceptName}</div>
+                          <div style={{ fontSize: T.cap, color: "var(--muted)", marginTop: 2 }}>{nice(ruleInfo(t.mainId).name)} › {t.subName}{t.itemName ? ` › ${t.itemName}` : ""}{t.time ? `, ${t.time}` : ""}</div>
+                          {t.note && <div style={{ fontSize: T.cap, color: "var(--muted)", fontStyle: "italic", marginTop: 2 }}>“{t.note}”</div>}
+                        </div>
+                        <span className="num" style={{ fontWeight: 650, fontSize: T.small, whiteSpace: "nowrap", color: "var(--bad)" }}>−{fmt(t.amount)}</span>
+                      </div>
+                    ))}
                   </div>
                 ))}
+                {w.count > 0 && (
+                  <div className="flex justify-between" style={{ marginTop: 6, padding: "10px 12px", borderRadius: 14, background: wc + "1c", fontSize: T.small, fontWeight: 700 }}>
+                    <span>Total semana {w.index}</span><span className="num" style={{ color: "var(--bad)" }}>−{fmt(w.total)}</span>
+                  </div>
+                )}
               </div>
             )}
           </Panel>

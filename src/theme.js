@@ -179,5 +179,7 @@ export function buildTheme(accentInput, mode) {
     sheetSurface: sheetEff,
     // Icons sit on a 14% tint of their own color — keep them ≥3:1 there.
     iconInk: (c) => ensureContrast(c, glassEff, 3),
+    // Any color used as TEXT on glass: nudged to ≥4.5:1
+    ink: (c) => ensureContrast(c, glassEff, 4.5),
   };
 }

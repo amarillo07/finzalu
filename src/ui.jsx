@@ -234,7 +234,7 @@ export function TxRow({ t, onClick, ruleName, ruleColor }) {
         </div>
       </div>
       <div style={{ textAlign: "right", flexShrink: 0 }}>
-        <div className="num" style={{ fontSize: T.body, fontWeight: 650, color: income ? "var(--good)" : "var(--text)" }}>{income ? "+" : "−"}{fmt(t.amount)}</div>
+        <div className="num" style={{ fontSize: T.body, fontWeight: 650, color: income ? "var(--good)" : "var(--bad)" }}>{income ? "+" : "−"}{fmt(t.amount)}</div>
         <div style={{ fontSize: T.cap, color: "var(--muted)", marginTop: 3 }}>{fmtDayShort(t.date)}{t.time ? `, ${t.time}` : ""}</div>
       </div>
     </button>
@@ -356,6 +356,64 @@ export function ColorPicker({ value, onChange }) {
       </div>
       <div style={{ fontSize: T.cap, color: "var(--muted)", margin: "10px 4px 0", lineHeight: 1.5 }}>
         No te preocupes por la legibilidad: el texto y los números se ajustan solos para que siempre contrasten con el color que elijas.
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------- */
+/* Donut ("gráfica de rueda") — tap a slice or a legend row to focus it    */
+/* ---------------------------------------------------------------------- */
+
+export function Donut({ segments, centerLabel = "Total", format = fmt }) {
+  const [active, setActive] = useState(null);
+  const [drawn, setDrawn] = useState(false);
+  useEffect(() => { const id = requestAnimationFrame(() => setDrawn(true)); return () => cancelAnimationFrame(id); }, []);
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  const size = 200, r = 74, sw = 24, C = 2 * Math.PI * r, gap = segments.length > 1 ? 3 : 0;
+  let offset = 0;
+  const focus = segments.find((s) => s.key === active);
+
+  return (
+    <div>
+      <div className="flex justify-center" style={{ position: "relative" }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Gráfica de rueda del gasto">
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--track)" strokeWidth={sw} />
+          {segments.map((s) => {
+            const len = total > 0 ? (s.value / total) * C : 0;
+            const dash = Math.max(0, len - gap);
+            const el = (
+              <circle
+                key={s.key}
+                cx={size / 2} cy={size / 2} r={r} fill="none"
+                stroke={s.color}
+                strokeWidth={active === s.key ? sw + 8 : sw}
+                strokeDasharray={`${drawn ? dash : 0} ${C}`}
+                strokeDashoffset={-offset}
+                transform={`rotate(-90 ${size / 2} ${size / 2})`}
+                style={{ transition: "stroke-dasharray .9s cubic-bezier(.2,.8,.2,1), stroke-width .25s, opacity .25s", opacity: active && active !== s.key ? 0.35 : 1, cursor: "pointer" }}
+                onClick={() => setActive(active === s.key ? null : s.key)}
+              />
+            );
+            offset += len;
+            return el;
+          })}
+        </svg>
+        <div className="flex flex-col items-center justify-center" style={{ position: "absolute", inset: 0, pointerEvents: "none", textAlign: "center" }}>
+          <div style={{ fontSize: T.cap, color: "var(--muted)", fontWeight: 600, maxWidth: 110 }} className="truncate">{focus ? focus.label : centerLabel}</div>
+          <div className="num" style={{ fontSize: T.title, fontWeight: 700 }}>{format(focus ? focus.value : total)}</div>
+          {focus && total > 0 && <div className="num" style={{ fontSize: T.cap, color: "var(--muted)" }}>{Math.round((focus.value / total) * 100)}% del total</div>}
+        </div>
+      </div>
+      <div style={{ marginTop: 10 }}>
+        {segments.map((s) => (
+          <button key={s.key} onClick={() => setActive(active === s.key ? null : s.key)} className="hairline w-full flex items-center gap-3 text-left" style={{ background: active === s.key ? "var(--chip)" : "none", border: "none", padding: "10px 8px", borderRadius: 12 }}>
+            <span style={{ width: 12, height: 12, borderRadius: 4, background: s.color, flexShrink: 0 }} />
+            <span className="truncate" style={{ flex: 1, fontSize: T.small, fontWeight: 600 }}>{s.label}</span>
+            <span className="num" style={{ fontSize: T.small, color: "var(--muted)", width: 44, textAlign: "right" }}>{total > 0 ? Math.round((s.value / total) * 100) : 0}%</span>
+            <span className="num" style={{ fontSize: T.small, fontWeight: 650, minWidth: 74, textAlign: "right" }}>{format(s.value)}</span>
+          </button>
+        ))}
       </div>
     </div>
   );

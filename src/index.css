@@ -5,6 +5,7 @@ html, body {
   background: var(--app-bg, #14121c);
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
+  overflow-x: hidden;
 }
 
 .app {
@@ -70,6 +71,10 @@ html, body {
 
 @keyframes screenIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 .screen-in { animation: screenIn .36s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes fromRight { from { opacity: 0; transform: translateX(56px); } to { opacity: 1; transform: none; } }
+@keyframes fromLeft { from { opacity: 0; transform: translateX(-56px); } to { opacity: 1; transform: none; } }
+.screen-from-right { animation: fromRight .38s cubic-bezier(.2,.8,.2,1) both; }
+.screen-from-left { animation: fromLeft .38s cubic-bezier(.2,.8,.2,1) both; }
 
 @keyframes sheetUp { from { transform: translateY(105%); } to { transform: none; } }
 @keyframes sheetDown { from { transform: none; } to { transform: translateY(105%); } }
@@ -101,6 +106,7 @@ html, body {
   .no-print { display: none !important; }
   .bg-layer { display: none !important; }
   .glass { box-shadow: none !important; backdrop-filter: none !important; background: #fff !important; border: 1px solid #ddd !important; }
-  .app, .app * { color: #000 !important; }
+  .app { --text: #111 !important; --muted: #555 !important; --bad: #c8292d !important; --good: #15803d !important; --faint: #e5e5e5 !important; }
+  .app * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html, body { background: #fff !important; }
 }

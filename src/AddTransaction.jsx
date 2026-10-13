@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Plus, ChevronRight, Trash2, Repeat } from "lucide-react";
 import { Sheet, PrimaryBtn, GhostBtn, Field, Chip, CatIcon, IconPicker, T } from "./ui";
-import { fmt0, nice, uid, todayISO, addDays, formatAmountInput, cleanAmountInput } from "./utils";
+import { fmt0, nice, uid, todayISO, addDays, formatAmountInput, cleanAmountInput, generateRecurringDates, fmtDayShort } from "./utils";
 
 const RECURRENCE = [["diaria", "Diaria"], ["semanal", "Semanal"], ["quincenal", "Quincenal"], ["mensual", "Mensual"], ["personalizado", "Cada X días"]];
 
@@ -55,6 +55,9 @@ export default function AddTransactionSheet({
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceType, setRecurrenceType] = useState("mensual");
   const [intervalDays, setIntervalDays] = useState("30");
+  const [dayOfMonth, setDayOfMonth] = useState(() => new Date((isEdit ? e.date : defaultDate) + "T00:00:00").getDate());
+  const [weekday, setWeekday] = useState(() => (new Date((isEdit ? e.date : defaultDate) + "T00:00:00").getDay() + 6) % 7);
+  const [quincena, setQuincena] = useState([15, 31]);
 
   const [creatingCat, setCreatingCat] = useState(false);
   const [newCatName, setNewCatName] = useState("");
@@ -67,6 +70,11 @@ export default function AddTransactionSheet({
   const cat = cats.find((s) => s.id === subId);
   const items = cat ? cat.items || [] : [];
   const item = items.find((i) => i.id === itemId);
+
+  const recurSpec = { start: date, type: recurrenceType, intervalDays, dayOfMonth, weekday, quincenaDays: quincena };
+  const nextCharges = isRecurring && !isEdit
+    ? generateRecurringDates(recurSpec).filter((d) => d >= todayISO()).slice(0, 3).map(fmtDayShort)
+    : [];
 
   const valid = Number(amount) > 0 && (type === "income" || !!mainId);
 
@@ -99,6 +107,9 @@ export default function AddTransactionSheet({
         conceptName: conceptName.trim() || fallback, icon: cat?.icon || "wallet",
         isRecurring: !isEdit && isRecurring, recurrenceType: !isEdit && isRecurring ? recurrenceType : null,
         intervalDays: !isEdit && isRecurring && recurrenceType === "personalizado" ? Number(intervalDays) || 30 : null,
+        dayOfMonth: !isEdit && isRecurring && recurrenceType === "mensual" ? dayOfMonth : null,
+        weekday: !isEdit && isRecurring && recurrenceType === "semanal" ? weekday : null,
+        quincenaDays: !isEdit && isRecurring && recurrenceType === "quincenal" ? quincena : null,
         ...(isEdit && e.recurringGroupId ? { recurringGroupId: e.recurringGroupId } : {}),
       });
     } else {
@@ -255,7 +266,7 @@ export default function AddTransactionSheet({
       )}
 
       {/* Date */}
-      <div style={{ fontSize: T.small, fontWeight: 600, color: "var(--muted)", margin: "4px 0 8px 4px" }}>Fecha</div>
+      <div style={{ fontSize: T.small, fontWeight: 600, color: "var(--muted)", margin: "4px 0 8px 4px" }}>{isRecurring && type === "expense" && !isEdit ? "A partir de" : "Fecha"}</div>
       <div className="flex gap-2 items-center" style={{ marginBottom: 14 }}>
         <Chip active={date === today} onClick={() => setDate(today)}>Hoy</Chip>
         <Chip active={date === yesterday} onClick={() => setDate(yesterday)}>Ayer</Chip>
@@ -286,18 +297,69 @@ export default function AddTransactionSheet({
               <div className="flex gap-2 flex-wrap">
                 {RECURRENCE.map(([k, l]) => <Chip key={k} active={recurrenceType === k} onClick={() => setRecurrenceType(k)}>{l}</Chip>)}
               </div>
-              {recurrenceType === "personalizado" ? (
-                <div className="flex items-center gap-2" style={{ marginTop: 10, fontSize: T.small }}>
+              {recurrenceType === "personalizado" && (
+                <div className="flex items-center gap-2" style={{ marginTop: 12, fontSize: T.small }}>
                   Cada
-                  <input className="field num" value={intervalDays} onChange={(ev) => setIntervalDays(ev.target.value.replace(/[^0-9]/g, "").slice(0, 3))} style={{ width: 70, textAlign: "center", padding: "8px" }} />
-                  días
+                  <input className="field num" inputMode="numeric" value={intervalDays} onChange={(ev) => setIntervalDays(ev.target.value.replace(/[^0-9]/g, "").slice(0, 3))} style={{ width: 70, textAlign: "center", padding: "8px" }} />
+                  días, empezando en la fecha de abajo
                 </div>
-              ) : (
-                <div style={{ fontSize: T.small, color: "var(--muted)", marginTop: 10 }}>
-                  {recurrenceType === "mensual" && `El día ${new Date(date + "T00:00:00").getDate()} de cada mes.`}
-                  {recurrenceType === "quincenal" && "Cada 15 días desde la fecha elegida."}
-                  {recurrenceType === "semanal" && "Cada semana, el mismo día."}
-                  {recurrenceType === "diaria" && "Todos los días."}
+              )}
+
+              {recurrenceType === "mensual" && (
+                <div className="expand" style={{ marginTop: 14 }}>
+                  <div style={{ fontSize: T.small, fontWeight: 650, marginBottom: 8 }}>¿Qué día del mes se cobra?</div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => {
+                      const on = dayOfMonth === d;
+                      return (
+                        <button key={d} type="button" onClick={() => setDayOfMonth(d)} className="press num" aria-pressed={on} style={{ height: 38, borderRadius: 12, border: "none", fontSize: T.small, fontWeight: on ? 700 : 500, background: on ? "var(--accent)" : "var(--chip)", color: on ? "var(--on-accent)" : "var(--text)" }}>{d}</button>
+                      );
+                    })}
+                  </div>
+                  {dayOfMonth < new Date(date + "T00:00:00").getDate() && (
+                    <div style={{ fontSize: T.cap, color: "var(--muted)", marginTop: 8, lineHeight: 1.45 }}>
+                      El día {dayOfMonth} de este mes ya pasó, así que el primer cobro será el próximo mes. Si ya lo pagaste y quieres registrarlo, cambia "A partir de" al día 1.
+                    </div>
+                  )}
+                  {dayOfMonth > 28 && <div style={{ fontSize: T.cap, color: "var(--muted)", marginTop: 8 }}>En los meses que no tienen día {dayOfMonth} se cobra el último día del mes.</div>}
+                </div>
+              )}
+
+              {recurrenceType === "semanal" && (
+                <div className="expand" style={{ marginTop: 14 }}>
+                  <div style={{ fontSize: T.small, fontWeight: 650, marginBottom: 8 }}>¿Qué día de la semana se cobra?</div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((l, i) => {
+                      const on = weekday === i;
+                      return <button key={l} type="button" onClick={() => setWeekday(i)} className="press" aria-pressed={on} style={{ height: 40, borderRadius: 12, border: "none", fontSize: T.cap, fontWeight: on ? 700 : 600, background: on ? "var(--accent)" : "var(--chip)", color: on ? "var(--on-accent)" : "var(--text)" }}>{l}</button>;
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {recurrenceType === "quincenal" && (
+                <div className="expand flex gap-2" style={{ marginTop: 14 }}>
+                  <label style={{ flex: 1 }}>
+                    <div style={{ fontSize: T.small, fontWeight: 650, marginBottom: 6 }}>Primer cobro</div>
+                    <select className="field" value={quincena[0]} onChange={(ev) => setQuincena([Number(ev.target.value), quincena[1]])}>
+                      {Array.from({ length: 15 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>Día {d}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ flex: 1 }}>
+                    <div style={{ fontSize: T.small, fontWeight: 650, marginBottom: 6 }}>Segundo cobro</div>
+                    <select className="field" value={quincena[1]} onChange={(ev) => setQuincena([quincena[0], Number(ev.target.value)])}>
+                      {Array.from({ length: 15 }, (_, i) => i + 16).map((d) => <option key={d} value={d}>{d === 31 ? "Último día" : `Día ${d}`}</option>)}
+                    </select>
+                  </label>
+                </div>
+              )}
+
+              {recurrenceType === "diaria" && <div style={{ fontSize: T.small, color: "var(--muted)", marginTop: 10 }}>Se registra todos los días a partir de la fecha de abajo.</div>}
+
+              {nextCharges.length > 0 && (
+                <div style={{ marginTop: 14, padding: "10px 12px", borderRadius: 14, background: "var(--accent-soft)" }}>
+                  <div style={{ fontSize: T.cap, fontWeight: 600, color: "var(--accent-ink)" }}>Próximos cobros</div>
+                  <div className="num" style={{ fontSize: T.small, fontWeight: 650, marginTop: 2 }}>{nextCharges.join(", ")}</div>
                 </div>
               )}
             </div>

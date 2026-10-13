@@ -190,18 +190,37 @@ export function getMonthGrid(year, monthIdx) {
   return weeks;
 }
 
-export function generateRecurringDates(startDate, recurrenceType, intervalDays) {
-  const dates = [startDate];
-  if (recurrenceType === "diaria") for (let i = 1; i <= 90; i++) dates.push(addDays(startDate, i));
-  else if (recurrenceType === "semanal") for (let i = 1; i <= 104; i++) dates.push(addDays(startDate, i * 7));
-  else if (recurrenceType === "quincenal") for (let i = 1; i <= 48; i++) dates.push(addDays(startDate, i * 15));
-  else if (recurrenceType === "mensual") for (let i = 1; i <= 24; i++) dates.push(addMonthsClamped(startDate, i));
-  else if (recurrenceType === "personalizado") {
-    const n = Math.max(1, Number(intervalDays) || 30);
+// Day N of the month `monthOffset` months after `dateStr` (clamped to the
+// month's last day, so "31" means "last day" in short months).
+function dayInMonth(dateStr, monthOffset, day) {
+  const d = new Date(dateStr + "T00:00:00");
+  const last = new Date(d.getFullYear(), d.getMonth() + monthOffset + 1, 0).getDate();
+  return localISO(new Date(d.getFullYear(), d.getMonth() + monthOffset, Math.min(day, last)));
+}
+
+// All charge dates of a recurring expense. Spec:
+//   start: "YYYY-MM-DD"  type: diaria|semanal|quincenal|mensual|personalizado
+//   dayOfMonth (mensual), weekday 0=lunes…6=domingo (semanal),
+//   quincenaDays [d1, d2] (quincenal), intervalDays (personalizado)
+export function generateRecurringDates(spec) {
+  const { start, type } = spec;
+  const dates = [];
+  if (type === "diaria") for (let i = 0; i <= 90; i++) dates.push(addDays(start, i));
+  else if (type === "semanal") {
+    const first = addDays(mondayOf(start), Number(spec.weekday ?? (new Date(start + "T00:00:00").getDay() + 6) % 7));
+    for (let i = 0; i <= 104; i++) dates.push(addDays(first, i * 7));
+  } else if (type === "quincenal") {
+    const [a, b] = spec.quincenaDays || [15, 31];
+    for (let m = 0; m < 24; m++) { dates.push(dayInMonth(start, m, a)); dates.push(dayInMonth(start, m, b)); }
+  } else if (type === "mensual") {
+    const day = Number(spec.dayOfMonth) || new Date(start + "T00:00:00").getDate();
+    for (let m = 0; m <= 24; m++) dates.push(dayInMonth(start, m, day));
+  } else if (type === "personalizado") {
+    const n = Math.max(1, Number(spec.intervalDays) || 30);
     const count = Math.min(150, Math.floor(730 / n));
-    for (let i = 1; i <= count; i++) dates.push(addDays(startDate, i * n));
-  }
-  return dates;
+    for (let i = 0; i <= count; i++) dates.push(addDays(start, i * n));
+  } else dates.push(start);
+  return [...new Set(dates)].filter((d) => d >= start).sort();
 }
 
 export function getViewPeriod(transactions, viewMode, customDays) {
