@@ -1,341 +1,49 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
-import {
-  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid,
-} from "recharts";
-import {
-  Home, PieChart as PieIcon, Calendar as CalendarIcon, Plus, Menu, Settings,
-  Search, ChevronLeft, ChevronRight, X, Check, PiggyBank, TrendingUp,
-  TrendingDown, ShoppingCart, Car, Utensils, Zap, Droplet, Wifi, Wrench,
-  Film, Gift, Wallet, FileText, Edit2, Trash2, ArrowLeft, DollarSign,
-  AlertCircle, Dog, Book, Plane, Heart, Printer, ChevronDown, ChevronUp,
-  Landmark, ShoppingBag, Briefcase, List as ListIcon, Sun, Moon,
-  Coffee, Pizza, Bus, Fuel, Stethoscope, GraduationCap, Baby, Shirt,
-  Smartphone, Tv, Gamepad2, Dumbbell, Scissors, Building2, CreditCard,
-  Music, Camera, ShoppingBasket, Bike, Train, Palmtree, HeartPulse,
-  Banknote, Users, Sparkles, Cat, TreePine, Pill as PillIcon,
-  SlidersHorizontal, Sliders, Beef, Fish, Egg, Drumstick, Soup, Salad,
-  Sandwich, IceCreamCone, Cake, Candy, Popcorn, Milk, Wheat, ChefHat,
-  CookingPot, Croissant, Wine, CupSoda, Umbrella, Glasses, Watch, Backpack,
-  Luggage, Key, Lightbulb, Flame, Thermometer, Paintbrush, Recycle, Leaf,
-  Flower2, Sofa, Bed, Bath, Anchor, Ship, Tent, MapPin,
-} from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { Home, PieChart as PieIcon, Calendar as CalendarIcon, Plus, Menu, Search, List as ListIcon } from "lucide-react";
 import { storage } from "./storage";
+import { buildTheme, DEFAULT_ACCENT } from "./theme";
+import { ThemeContext, Sheet, Confirm, Toast, TxRow, EmptyNote, IconBtn, T } from "./ui";
+import {
+  STORAGE_KEY, MONTHS, uid, nice, monthlyEquivalent, todayISO, ym, generateRecurringDates, fmtDayLong,
+} from "./utils";
+import AddTransactionSheet from "./AddTransaction";
+import { HomeScreen, StatsScreen, CalendarScreen, DayDetail, LogScreen, StatementScreen } from "./screens-main";
+import {
+  CategoriesScreen, GoalsScreen, GoalDetail, RulesScreen, ProfileScreen, ViewModeEditor, MenuList, Onboarding,
+} from "./screens-manage";
 
-/* ---------------------------------------------------------------------- */
-/* Constants + helpers                                                    */
-/* ---------------------------------------------------------------------- */
-
-const STORAGE_KEY = "finanzas_mx_state_v1";
-
-// Brand / status colors never change between light & dark mode
-const LIME = "#D8FF3E";
-const RED = "#FF5D5D";
-const YELLOW = "#FFC94A";
-const GREEN = "#33D17A";
-const INK = "#101826";   // text used on top of white cards (same both themes)
-const CARD = "#FFFFFF";  // card background (same both themes)
-const MUTED = "#8B93A3"; // secondary text on white cards (same both themes)
-const SLATE_CARD = "#3C4C66";
-
-const RULE_COLORS = ["#D8FF3E", "#5FB8FF", "#FF8A5C", "#B98CFF", "#33D17A", "#FF5D9E"];
-
-// Only the "chrome" (outer background, nav, text directly on the background)
-// changes between themes — cards themselves stay the same in both.
-const PALETTES = {
-  dark: {
-    bgTop: "#2E3F58", bgBottom: "#131B29",
-    onBg: "#FFFFFF", onBgMuted: "rgba(255,255,255,0.55)",
-    pillBg: "rgba(255,255,255,0.12)", pillBgSoft: "rgba(255,255,255,0.08)",
-    circleBg: "rgba(255,255,255,0.12)", navBg: "rgba(19,27,41,0.75)",
-    emptyBg: "rgba(255,255,255,0.06)",
-  },
-  light: {
-    bgTop: "#EEF1F6", bgBottom: "#DCE1E9",
-    onBg: "#141B26", onBgMuted: "rgba(20,27,38,0.5)",
-    pillBg: "rgba(20,27,38,0.07)", pillBgSoft: "rgba(20,27,38,0.05)",
-    circleBg: "rgba(20,27,38,0.07)", navBg: "rgba(255,255,255,0.75)",
-    emptyBg: "rgba(20,27,38,0.05)",
-  },
-};
-
-const ThemeContext = React.createContext(PALETTES.dark);
-function useColors() { return React.useContext(ThemeContext); }
-
-const RULE_PRESETS = {
-  "50/30/20": [
-    { id: "necesidades", name: "NECESIDADES", percent: 50 },
-    { id: "deseos", name: "DESEOS", percent: 30 },
-    { id: "ahorros", name: "AHORROS", percent: 20 },
-  ],
-  "80/20": [
-    { id: "gastos", name: "GASTOS", percent: 80 },
-    { id: "ahorros", name: "AHORROS", percent: 20 },
-  ],
-  "70/20/10": [
-    { id: "gastos", name: "GASTOS", percent: 70 },
-    { id: "ahorros", name: "AHORROS", percent: 20 },
-    { id: "deudas", name: "DEUDAS", percent: 10 },
-  ],
-};
-
-const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-const WEEKDAYS = ["L","M","M","J","V","S","D"];
-
-const ICONS = [
-  // Casa / servicios — ámbar-café
-  { key: "home", Icon: Home, color: "#F2A65A" }, { key: "zap", Icon: Zap, color: "#F5C445" },
-  { key: "water", Icon: Droplet, color: "#4CB8E8" }, { key: "wifi", Icon: Wifi, color: "#5B8DEF" },
-  { key: "flame", Icon: Flame, color: "#FF7A4D" }, { key: "tool", Icon: Wrench, color: "#8B93A3" },
-  { key: "lightbulb", Icon: Lightbulb, color: "#F6C445" }, { key: "sofa", Icon: Sofa, color: "#C98A5E" },
-  { key: "bed", Icon: Bed, color: "#9B87D6" }, { key: "bath", Icon: Bath, color: "#4CB8E8" },
-  { key: "thermometer", Icon: Thermometer, color: "#FF6B6B" }, { key: "paintbrush", Icon: Paintbrush, color: "#F27EB0" },
-  { key: "building", Icon: Building2, color: "#7A93B8" }, { key: "key", Icon: Key, color: "#E0B341" },
-  // Super / comida — rojos, naranjas, verdes cálidos
-  { key: "cart", Icon: ShoppingCart, color: "#4CAF7D" }, { key: "basket", Icon: ShoppingBasket, color: "#F2A65A" },
-  { key: "food", Icon: Utensils, color: "#FF7A4D" }, { key: "beef", Icon: Beef, color: "#E85D5D" },
-  { key: "fish", Icon: Fish, color: "#4CB8E8" }, { key: "egg", Icon: Egg, color: "#F5D06A" },
-  { key: "drumstick", Icon: Drumstick, color: "#E0955F" }, { key: "soup", Icon: Soup, color: "#F2915C" },
-  { key: "salad", Icon: Salad, color: "#5FBF6B" }, { key: "sandwich", Icon: Sandwich, color: "#E8A857" },
-  { key: "icecream", Icon: IceCreamCone, color: "#F2A0C4" }, { key: "cake", Icon: Cake, color: "#F27EB0" },
-  { key: "candy", Icon: Candy, color: "#FF6B9E" }, { key: "popcorn", Icon: Popcorn, color: "#F5C445" },
-  { key: "milk", Icon: Milk, color: "#9BC6E8" }, { key: "wheat", Icon: Wheat, color: "#D8B355" },
-  { key: "chef", Icon: ChefHat, color: "#5A6472" }, { key: "pot", Icon: CookingPot, color: "#E0705F" },
-  { key: "croissant", Icon: Croissant, color: "#E0A85C" }, { key: "wine", Icon: Wine, color: "#9B4D6B" },
-  { key: "soda", Icon: CupSoda, color: "#FF7A7A" }, { key: "coffee", Icon: Coffee, color: "#8A5A3B" },
-  { key: "pizza", Icon: Pizza, color: "#F2915C" },
-  // Transporte — azules
-  { key: "car", Icon: Car, color: "#5B8DEF" }, { key: "bus", Icon: Bus, color: "#5FA8D3" },
-  { key: "fuel", Icon: Fuel, color: "#F2A65A" }, { key: "bike", Icon: Bike, color: "#4CAF7D" },
-  { key: "train", Icon: Train, color: "#7A93B8" }, { key: "plane", Icon: Plane, color: "#5B8DEF" },
-  { key: "ship", Icon: Ship, color: "#4CB8E8" }, { key: "anchor", Icon: Anchor, color: "#5A7A9B" },
-  // Salud / bienestar — rosas y rojos suaves
-  { key: "health", Icon: Stethoscope, color: "#E85D8A" }, { key: "medical", Icon: HeartPulse, color: "#FF6B6B" },
-  { key: "pill", Icon: PillIcon, color: "#5FBF9B" }, { key: "heart", Icon: Heart, color: "#FF6B9E" },
-  { key: "baby", Icon: Baby, color: "#F2A0C4" }, { key: "gym", Icon: Dumbbell, color: "#5A6472" },
-  { key: "haircut", Icon: Scissors, color: "#9B87D6" },
-  // Ocio / entretenimiento — morados y magentas
-  { key: "film", Icon: Film, color: "#9B6BD6" }, { key: "music", Icon: Music, color: "#D65FA8" },
-  { key: "games", Icon: Gamepad2, color: "#6B7FE0" }, { key: "tv", Icon: Tv, color: "#5A6472" },
-  { key: "camera", Icon: Camera, color: "#F2A65A" }, { key: "vacation", Icon: Palmtree, color: "#4CAF7D" },
-  { key: "tent", Icon: Tent, color: "#E0955F" }, { key: "sparkles", Icon: Sparkles, color: "#F5C445" },
-  { key: "gift", Icon: Gift, color: "#E85D8A" },
-  // Compras / personal — teales y cian
-  { key: "bag", Icon: ShoppingBag, color: "#4CB8A8" }, { key: "clothes", Icon: Shirt, color: "#5FA8D3" },
-  { key: "phone", Icon: Smartphone, color: "#5A6472" }, { key: "watch", Icon: Watch, color: "#8B93A3" },
-  { key: "glasses", Icon: Glasses, color: "#5A6472" }, { key: "backpack", Icon: Backpack, color: "#E0955F" },
-  { key: "luggage", Icon: Luggage, color: "#7A93B8" }, { key: "umbrella", Icon: Umbrella, color: "#5B8DEF" },
-  // Dinero / trabajo / familia — verdes
-  { key: "wallet", Icon: Wallet, color: "#4CAF7D" }, { key: "bank", Icon: Landmark, color: "#5A8A6B" },
-  { key: "cash", Icon: Banknote, color: "#4CAF7D" }, { key: "card", Icon: CreditCard, color: "#5B8DEF" },
-  { key: "work", Icon: Briefcase, color: "#7A93B8" }, { key: "school", Icon: GraduationCap, color: "#5B8DEF" },
-  { key: "book", Icon: Book, color: "#E0955F" }, { key: "family", Icon: Users, color: "#F2A65A" },
-  // Otros / naturaleza
-  { key: "pet", Icon: Dog, color: "#E0955F" }, { key: "cat", Icon: Cat, color: "#8B93A3" },
-  { key: "tree", Icon: TreePine, color: "#4CAF7D" }, { key: "leaf", Icon: Leaf, color: "#5FBF6B" },
-  { key: "flower", Icon: Flower2, color: "#F27EB0" }, { key: "recycle", Icon: Recycle, color: "#4CAF7D" },
-  { key: "map", Icon: MapPin, color: "#E85D5D" },
-];
-const iconFor = (key) => (ICONS.find((i) => i.key === key) || ICONS[10]).Icon;
-const colorForIcon = (key) => (ICONS.find((i) => i.key === key) || ICONS[10]).color;
-
-function uid(p = "id") { return p + "_" + Math.random().toString(36).slice(2, 10); }
-
-function monthlyEquivalent(amount, periodicity) {
-  const a = Number(amount) || 0;
-  switch (periodicity) {
-    case "diaria": return a * 30;
-    case "semanal": return a * 4.33;
-    case "quincenal": return a * 2;
-    default: return a;
-  }
+// Old saves stored theme as "dark"/"light"; categories had no `items` yet.
+function migrateAppearance(raw) {
+  if (raw && typeof raw === "object") return { mode: raw.mode === "light" ? "light" : "dark", accent: raw.accent || DEFAULT_ACCENT };
+  return { mode: raw === "light" ? "light" : "dark", accent: DEFAULT_ACCENT };
 }
-
-function periodicAmounts(monthlyRemaining, daysRemaining) {
-  const d = Math.max(daysRemaining, 1);
-  const months = d / 30;
-  return {
-    mensual: monthlyRemaining / Math.max(months, 1 / 30),
-    quincenal: monthlyRemaining / Math.max(months, 1 / 30) / 2,
-    semanal: monthlyRemaining / (d / 7),
-    diario: monthlyRemaining / d,
-  };
+function migrateCategories(cats) {
+  return (cats || []).map((r) => ({ ...r, subcategories: (r.subcategories || []).map((s) => ({ ...s, items: s.items || [] })) }));
 }
-
-function fmt(n) {
-  const v = Number(n) || 0;
-  return (v < 0 ? "-$" : "$") + Math.abs(v).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-// Formats a raw numeric string (e.g. "2000.5") with thousands commas for
-// display inside an editable input, e.g. "2,000.5" — keeps the underlying
-// state as a clean digit string so it's still easy to parse with Number().
-function formatAmountInput(raw) {
-  if (!raw) return "";
-  const [intPart, ...rest] = String(raw).split(".");
-  const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return rest.length ? `${withCommas}.${rest.join("")}` : withCommas;
-}
-function cleanAmountInput(str) {
-  return str.replace(/,/g, "").replace(/[^0-9.]/g, "");
-}
-
-// Local date (NOT UTC) — toISOString() would jump to "tomorrow" after 6pm in México.
-function localISO(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function todayISO() { return localISO(new Date()); }
-
-function ym(dateStr) { return dateStr.slice(0, 7); }
-
-function statusColor(spent, budget) {
-  if (budget <= 0) return MUTED;
-  const pct = spent / budget;
-  if (pct > 1) return RED;
-  if (pct >= 0.9) return YELLOW;
-  return GREEN;
-}
-
-function getMonthGrid(year, monthIdx) {
-  const first = new Date(year, monthIdx, 1);
-  const startOffset = (first.getDay() + 6) % 7; // Monday = 0
-  const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
-  const cells = [];
-  for (let i = 0; i < startOffset; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-  while (cells.length % 7 !== 0) cells.push(null);
-  const weeks = [];
-  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
-  return weeks;
-}
-
-/* ---------------------------------------------------------------------- */
-/* Small UI atoms                                                         */
-/* ---------------------------------------------------------------------- */
-
-function CircleBtn({ children, onClick, active, onCard }) {
-  const c = useColors();
-  return (
-    <button
-      onClick={onClick}
-      className="flex items-center justify-center rounded-full"
-      style={{
-        width: 40, height: 40, flexShrink: 0,
-        background: active ? LIME : onCard ? "#F2F3F5" : c.circleBg,
-        color: active ? INK : onCard ? INK : c.onBg,
-        border: "none", backdropFilter: onCard ? "none" : "blur(8px)", WebkitBackdropFilter: onCard ? "none" : "blur(8px)",
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Pill({ children, active, onClick, style, onCard }) {
-  const c = useColors();
-  return (
-    <button
-      onClick={onClick}
-      className="rounded-full whitespace-nowrap"
-      style={{
-        padding: "8px 16px", fontSize: 15, fontWeight: 600, border: "none",
-        background: active ? LIME : onCard ? "#F2F3F5" : c.pillBg,
-        color: active ? INK : onCard ? INK : c.onBg,
-        ...style,
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Sheet({ title, onClose, children, footer }) {
-  return (
-    <div className="fixed inset-0 flex flex-col justify-end no-print" style={{ zIndex: 50, background: "rgba(10,14,20,0.5)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }} onClick={onClose}>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="rounded-t-3xl flex flex-col"
-        style={{ background: CARD, maxHeight: "88vh", color: INK }}
-      >
-        <div className="flex items-center justify-between px-5 pt-5 pb-3" style={{ borderBottom: "1px solid #EEF0F3" }}>
-          <div className="font-bold" style={{ fontSize: 19 }}>{title}</div>
-          <button onClick={onClose} className="rounded-full flex items-center justify-center" style={{ width: 32, height: 32, background: "#F2F3F5" }}>
-            <X size={16} />
-          </button>
-        </div>
-        <div className="overflow-y-auto px-5 py-4" style={{ flex: 1 }}>{children}</div>
-        {footer && <div className="px-5 py-4" style={{ borderTop: "1px solid #EEF0F3" }}>{footer}</div>}
-      </div>
-    </div>
-  );
-}
-
-function TextField({ label, ...props }) {
-  return (
-    <label className="block mb-3">
-      {label && <div className="mb-1" style={{ fontSize: 14, fontWeight: 600, color: "#5A6472" }}>{label}</div>}
-      <input
-        {...props}
-        className="w-full rounded-xl"
-        style={{ padding: "12px 14px", background: "#F4F5F7", border: "1px solid #E7E9EC", fontSize: 17, color: INK, ...(props.style || {}) }}
-      />
-    </label>
-  );
-}
-
-function PrimaryBtn({ children, onClick, disabled, style }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className="w-full rounded-xl font-bold"
-      style={{ padding: "13px 16px", background: disabled ? "#E7E9EC" : LIME, color: disabled ? "#A6ACB5" : INK, border: "none", fontSize: 17, ...style }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Confirm({ text, onCancel, onConfirm, confirmLabel = "Eliminar" }) {
-  return (
-    <div className="fixed inset-0 flex items-center justify-center no-print" style={{ zIndex: 60, background: "rgba(10,14,20,0.55)" }} onClick={onCancel}>
-      <div onClick={(e) => e.stopPropagation()} className="rounded-2xl p-5" style={{ background: CARD, width: 280, color: INK }}>
-        <div style={{ fontSize: 16, marginBottom: 16 }}>{text}</div>
-        <div className="flex gap-2">
-          <button onClick={onCancel} className="flex-1 rounded-xl py-2" style={{ background: "#F2F3F5", fontWeight: 600, fontSize: 15 }}>Cancelar</button>
-          <button onClick={onConfirm} className="flex-1 rounded-xl py-2" style={{ background: RED, color: "#fff", fontWeight: 600, fontSize: 15 }}>{confirmLabel}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Main App                                                                */
-/* ---------------------------------------------------------------------- */
 
 export default function FinanzasMX() {
   const [loaded, setLoaded] = useState(false);
   const [profile, setProfile] = useState(null);
-  const [categories, setCategories] = useState([]); // [{id,name,percent,subcategories:[{id,name,icon,concepts:[{id,name,amount,periodicity}]}]}]
-  const [transactions, setTransactions] = useState([]); // [{id,type,kind,amount,date,time,mainId,subId,subName,conceptName,note}]
+  const [categories, setCategories] = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [goals, setGoals] = useState([]);
-  const [theme, setTheme] = useState("dark");
+  const [appearance, setAppearance] = useState({ mode: "dark", accent: DEFAULT_ACCENT });
 
   const [screen, setScreen] = useState("home");
   const [monthCursor, setMonthCursor] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const [ruleFilter, setRuleFilter] = useState("todas");
-  const [addOpen, setAddOpen] = useState(null); // 'expense' | 'income' | null
+  const [addOpen, setAddOpen] = useState(null);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [dayDetail, setDayDetail] = useState(null); // "YYYY-MM-DD"
+  const [dayDetail, setDayDetail] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
-  const [confirmDel, setConfirmDel] = useState(null); // {type,id}
+  const [confirmDel, setConfirmDel] = useState(null);
   const [goalDetail, setGoalDetail] = useState(null);
   const [prefillDate, setPrefillDate] = useState(null);
   const [saveNote, setSaveNote] = useState("");
-  const [editingTx, setEditingTx] = useState(null); // transaction being edited, or null when adding
+  const [editingTx, setEditingTx] = useState(null);
   const [viewModeOpen, setViewModeOpen] = useState(false);
+  const [toast, setToast] = useState("");
 
   /* ---- load / save ---- */
   useEffect(() => {
@@ -345,12 +53,12 @@ export default function FinanzasMX() {
         if (res && res.value) {
           const data = JSON.parse(res.value);
           setProfile(data.profile || null);
-          setCategories(data.categories || []);
+          setCategories(migrateCategories(data.categories));
           setTransactions(data.transactions || []);
           setGoals(data.goals || []);
-          setTheme(data.theme || "dark");
+          setAppearance(migrateAppearance(data.appearance || data.theme));
         }
-      } catch (e) { /* nothing stored yet — normal on first use, works fully offline from memory */ }
+      } catch (e) { /* first use */ }
       setLoaded(true);
     })();
   }, []);
@@ -359,1747 +67,304 @@ export default function FinanzasMX() {
     if (!loaded) return;
     const t = setTimeout(async () => {
       try {
-        await storage.set(STORAGE_KEY, JSON.stringify({ profile, categories, transactions, goals, theme }));
-        setSaveNote("Guardado");
-        setTimeout(() => setSaveNote(""), 1200);
-      } catch (e) { setSaveNote("Sin conexión — tus datos siguen aquí y se sincronizarán al reconectar"); }
-    }, 500);
+        await storage.set(STORAGE_KEY, JSON.stringify({ profile, categories, transactions, goals, appearance, theme: appearance.mode }));
+        setSaveNote("Cambios guardados en este teléfono.");
+        setTimeout(() => setSaveNote(""), 1600);
+      } catch (e) { setSaveNote("No se pudo guardar. Revisa que tu teléfono tenga espacio."); }
+    }, 400);
     return () => clearTimeout(t);
-  }, [profile, categories, transactions, goals, theme, loaded]);
+  }, [profile, categories, transactions, goals, appearance, loaded]);
 
-  const colors = PALETTES[theme] || PALETTES.dark;
+  const theme = useMemo(() => buildTheme(appearance.accent, appearance.mode), [appearance]);
+
+  // Keep the browser chrome (status bar, overscroll) in the same color
+  useEffect(() => {
+    document.documentElement.style.setProperty("--app-bg", theme.bg);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", theme.bg);
+  }, [theme]);
+
+  function flash(msg) { setToast(msg); setTimeout(() => setToast((cur) => (cur === msg ? "" : cur)), 1800); }
 
   /* ---- derived ---- */
   const monthKey = `${monthCursor.y}-${String(monthCursor.m + 1).padStart(2, "0")}`;
   const monthLabel = `${MONTHS[monthCursor.m]} ${monthCursor.y}`;
-  const monthlyIncome = profile ? monthlyEquivalent(profile.incomeAmount, profile.incomePeriodicity) : 0;
+  const expectedIncome = profile ? monthlyEquivalent(profile.incomeAmount, profile.incomePeriodicity) : 0;
 
   const monthExpenses = useMemo(() => transactions.filter((t) => t.type === "expense" && ym(t.date) === monthKey), [transactions, monthKey]);
   const monthIncomes = useMemo(() => transactions.filter((t) => t.type === "income" && ym(t.date) === monthKey), [transactions, monthKey]);
   const totalSpentMonth = monthExpenses.reduce((s, t) => s + t.amount, 0);
   const totalIncomeMonth = monthIncomes.reduce((s, t) => s + t.amount, 0);
 
-  // Real money available to split between the rules this month:
-  //  - "Ingreso principal" registered: if it adds up to MORE than the expected
-  //    salary (profile), use what really came in; otherwise keep the expected
-  //    salary so budgets don't shrink while waiting for the 2nd quincena.
-  //  - "Ingreso extra": always ADDED on top.
+  // Money split between the rules: expected salary (or what really came in,
+  // if more) plus every extra income.
   const principalIncomeMonth = monthIncomes.filter((t) => t.subName !== "Ingreso extra").reduce((s, t) => s + t.amount, 0);
   const extraIncomeMonth = monthIncomes.filter((t) => t.subName === "Ingreso extra").reduce((s, t) => s + t.amount, 0);
-  const budgetBase = Math.max(monthlyIncome, principalIncomeMonth) + extraIncomeMonth;
+  const budgetBase = Math.max(expectedIncome, principalIncomeMonth) + extraIncomeMonth;
 
-  function spentInCategory(catId) { return monthExpenses.filter((t) => t.mainId === catId).reduce((s, t) => s + t.amount, 0); }
-  function budgetFor(cat) { return (budgetBase * cat.percent) / 100; }
-
-  function catById(id) { return categories.find((c) => c.id === id); }
+  const spentInCategory = (id) => monthExpenses.filter((t) => t.mainId === id).reduce((s, t) => s + t.amount, 0);
+  const budgetFor = (cat) => (budgetBase * cat.percent) / 100;
+  const ruleInfo = (id) => {
+    const i = categories.findIndex((c) => c.id === id);
+    return i < 0 ? { name: "Sin regla", color: "var(--muted)" } : { name: nice(categories[i].name), color: theme.series[i % theme.series.length] };
+  };
 
   function shiftMonth(delta) {
     let m = monthCursor.m + delta, y = monthCursor.y;
     if (m < 0) { m = 11; y--; } else if (m > 11) { m = 0; y++; }
     setMonthCursor({ y, m });
   }
+  function go(s) { setScreen(s); window.scrollTo({ top: 0, behavior: "smooth" }); }
 
-  /* ---- category tree mutations ---- */
-  function addSubcategory(mainId, name, icon) {
-    setCategories((prev) => prev.map((c) => c.id === mainId ? { ...c, subcategories: [...c.subcategories, { id: uid("sub"), name, icon }] } : c));
-  }
-  function deleteSub(mainId, subId) {
-    setCategories((prev) => prev.map((c) => c.id === mainId ? { ...c, subcategories: c.subcategories.filter((s) => s.id !== subId) } : c));
-  }
-  function editSub(mainId, subId, name, icon) {
-    setCategories((prev) => prev.map((c) => c.id !== mainId ? c : { ...c, subcategories: c.subcategories.map((s) => s.id === subId ? { ...s, name, icon } : s) }));
-    // keep existing transactions' displayed sub-name in sync
-    setTransactions((prev) => prev.map((t) => t.subId === subId ? { ...t, subName: name, icon } : t));
-  }
+  /* ---- category tree: Regla › Categoría › Subcategoría ---- */
+  const mapRule = (mainId, fn) => setCategories((prev) => prev.map((r) => (r.id === mainId ? fn(r) : r)));
+  const mapCat = (mainId, subId, fn) => mapRule(mainId, (r) => ({ ...r, subcategories: r.subcategories.map((s) => (s.id === subId ? fn(s) : s)) }));
 
-  // Switch to a different financial rule (preset or custom). Subcategories of
-  // categories whose name matches the new rule are preserved; the rest start empty.
+  function createCategory(mainId, cat) { mapRule(mainId, (r) => ({ ...r, subcategories: [...r.subcategories, { ...cat, items: [] }] })); }
+  function editCategory(mainId, subId, name, icon) {
+    mapCat(mainId, subId, (s) => ({ ...s, name, icon }));
+    setTransactions((prev) => prev.map((t) => (t.subId === subId ? { ...t, subName: name, icon } : t)));
+  }
+  function deleteCategory(mainId, subId) { mapRule(mainId, (r) => ({ ...r, subcategories: r.subcategories.filter((s) => s.id !== subId) })); }
+  function createItem(mainId, subId, item) { mapCat(mainId, subId, (s) => ({ ...s, items: [...(s.items || []), item] })); }
+  function editItem(mainId, subId, itemId, name) {
+    mapCat(mainId, subId, (s) => ({ ...s, items: s.items.map((i) => (i.id === itemId ? { ...i, name } : i)) }));
+    setTransactions((prev) => prev.map((t) => (t.itemId === itemId ? { ...t, itemName: name } : t)));
+  }
+  function deleteItem(mainId, subId, itemId) { mapCat(mainId, subId, (s) => ({ ...s, items: s.items.filter((i) => i.id !== itemId) })); }
+
   function applyRule(newRuleCats, ruleName) {
     setCategories((prev) => newRuleCats.map((rc) => {
       const existing = prev.find((c) => c.name.trim().toLowerCase() === rc.name.trim().toLowerCase());
-      return { id: uid("rc"), name: rc.name, percent: rc.percent, subcategories: existing ? existing.subcategories : [] };
+      return { id: existing ? existing.id : uid("rc"), name: rc.name, percent: rc.percent, subcategories: existing ? existing.subcategories : [] };
     }));
     setProfile((p) => ({ ...p, ruleName }));
+    flash("Regla actualizada");
   }
 
-  function ensureSub(mainId, subName) {
-    const cat = catById(mainId);
-    let sub = cat.subcategories.find((s) => s.name.toLowerCase() === subName.toLowerCase());
-    if (!sub) { addSubcategory(mainId, subName, "wallet"); return null; }
-    return sub.id;
-  }
-
-  /* ---- transaction mutations ---- */
-  function addTransaction(tx) { setTransactions((prev) => [{ id: uid("tx"), ...tx }, ...prev]); }
-  // Adds the transaction plus, if it's marked recurring, a batch of future
-  // occurrences already generated — so nothing needs to be re-entered by hand
-  // each month. All share the same recurringGroupId.
+  /* ---- transactions ---- */
   function addTransactionWithRecurrence(tx) {
-    if (!tx.isRecurring) { addTransaction(tx); return; }
+    if (!tx.isRecurring) { setTransactions((prev) => [{ id: uid("tx"), ...tx }, ...prev]); return; }
     const groupId = uid("rec");
-    const dates = generateRecurringDates(tx.date, tx.recurrenceType, tx.intervalDays);
-    const batch = dates.map((d) => ({ id: uid("tx"), ...tx, date: d, recurringGroupId: groupId, autoGenerated: d !== tx.date }));
+    const batch = generateRecurringDates(tx.date, tx.recurrenceType, tx.intervalDays).map((d) => ({ id: uid("tx"), ...tx, date: d, recurringGroupId: groupId, autoGenerated: d !== tx.date }));
     setTransactions((prev) => [...batch, ...prev]);
   }
-  // Removes only the FUTURE occurrences of a recurring series (keeps history intact)
-  function cancelFutureRecurrences(recurringGroupId, fromDateExclusive) {
-    setTransactions((prev) => prev.filter((t) => !(t.recurringGroupId === recurringGroupId && t.date > fromDateExclusive)));
-  }
-  function editTransaction(id, tx) { setTransactions((prev) => prev.map((t) => t.id === id ? { ...tx, id } : t)); }
-  function deleteTransaction(id) { setTransactions((prev) => prev.filter((t) => t.id !== id)); }
+  const cancelFutureRecurrences = (groupId, from) => setTransactions((prev) => prev.filter((t) => !(t.recurringGroupId === groupId && t.date > from)));
+  const editTransaction = (id, tx) => setTransactions((prev) => prev.map((t) => (t.id === id ? { ...tx, id } : t)));
+  const deleteTransaction = (id) => setTransactions((prev) => prev.filter((t) => t.id !== id));
 
-  /* ---- onboarding ---- */
-  if (!loaded) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: `linear-gradient(180deg, ${PALETTES.dark.bgTop}, ${PALETTES.dark.bgBottom})`, color: "#fff" }}>
-        Cargando…
-      </div>
-    );
-  }
-  if (!profile) {
-    return <Onboarding onDone={(p, cats) => { setProfile(p); setCategories(cats); }} />;
-  }
+  const openTx = (t) => { setEditingTx(t); setAddOpen(t.type); };
+  const openAdd = (kind, date = null) => { setEditingTx(null); setPrefillDate(date); setAddOpen(kind); };
+  const closeAdd = () => { setAddOpen(null); setPrefillDate(null); setEditingTx(null); };
 
   /* ---- render ---- */
+  const rootStyle = { ...theme.vars, minHeight: "100vh" };
+
+  if (!loaded) {
+    return (
+      <ThemeContext.Provider value={theme}>
+        <div className="app" style={rootStyle}><div className="bg-layer" /></div>
+      </ThemeContext.Provider>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <ThemeContext.Provider value={theme}>
+        <div className="app" style={rootStyle}>
+          <div className="bg-layer" />
+          <Onboarding appearance={appearance} setAppearance={setAppearance} onDone={(p, cats) => { setProfile(p); setCategories(migrateCategories(cats)); }} />
+        </div>
+      </ThemeContext.Provider>
+    );
+  }
+
+  const searchResults = searchQ.trim()
+    ? transactions.filter((t) => [t.conceptName, t.note, t.subName, t.itemName].filter(Boolean).join(" ").toLowerCase().includes(searchQ.trim().toLowerCase())).slice(0, 40)
+    : [];
+
   return (
-    <ThemeContext.Provider value={colors}>
-    <div className="min-h-screen w-full flex justify-center" style={{ background: `linear-gradient(180deg, ${colors.bgTop} 0%, ${colors.bgBottom} 65%)`, fontFamily: "'Urbanist', system-ui, sans-serif", transition: "background 0.3s" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800;900&display=swap');
-        .num { font-family: 'Urbanist', system-ui, sans-serif; font-variant-numeric: tabular-nums; }
-        ::-webkit-scrollbar { width: 0px; height: 0px; }
-        @media print {
-          .no-print { display: none !important; }
-          .print-area { color: #000 !important; background: #fff !important; }
-          body { background: #fff !important; }
-        }
-      `}</style>
-      <div className="w-full flex flex-col" style={{ maxWidth: 430, minHeight: "100vh", position: "relative" }}>
+    <ThemeContext.Provider value={theme}>
+      <div className="app" style={rootStyle}>
+        <div className="bg-layer" />
+        <div className="w-full flex justify-center" style={{ position: "relative", zIndex: 1 }}>
+          <div className="w-full flex flex-col" style={{ maxWidth: 480, minHeight: "100vh" }}>
 
-        {/* Top bar */}
-        <div className="no-print flex items-center justify-between px-5 pt-6 pb-2">
-          <CircleBtn onClick={() => setMoreOpen(true)}><Menu size={18} /></CircleBtn>
-          <div className="text-center">
-            <div style={{ color: colors.onBgMuted, fontSize: 13, fontWeight: 600 }}>Hola,</div>
-            <div style={{ color: colors.onBg, fontSize: 17, fontWeight: 700 }}>{profile.name}</div>
-          </div>
-          <CircleBtn onClick={() => setSearchOpen(true)}><Search size={17} /></CircleBtn>
-        </div>
+            {/* Top bar */}
+            <header className="no-print flex items-center gap-3" style={{ padding: "calc(env(safe-area-inset-top) + 16px) 20px 14px" }}>
+              <IconBtn onClick={() => setMoreOpen(true)} label="Menú"><Menu size={19} /></IconBtn>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: T.small, color: "var(--muted)" }}>Hola,</div>
+                <div className="truncate" style={{ fontSize: T.title, fontWeight: 700, letterSpacing: "-0.01em", lineHeight: 1.15 }}>{profile.name}</div>
+              </div>
+              <IconBtn onClick={() => setSearchOpen(true)} label="Buscar"><Search size={18} /></IconBtn>
+            </header>
 
-        <div className="flex-1 px-5 pb-28" style={{ overflowY: "auto" }}>
-          {screen === "home" && (
-            <HomeScreen
-              profile={profile} categories={categories} monthLabel={monthLabel}
-              shiftMonth={shiftMonth} monthlyIncome={budgetBase}
-              totalSpentMonth={totalSpentMonth} totalIncomeMonth={totalIncomeMonth}
-              spentInCategory={spentInCategory} budgetFor={budgetFor}
-              monthExpenses={monthExpenses} monthIncomes={monthIncomes} transactions={transactions}
-              deleteTransaction={(id) => setConfirmDel({ type: "tx", id })}
-              onEditTransaction={(t) => { setEditingTx(t); setAddOpen(t.type); }}
-              onAddExpense={() => setAddOpen("expense")} onAddIncome={() => setAddOpen("income")}
-            />
-          )}
-
-          {screen === "stats" && (
-            <StatsScreen
-              categories={categories} ruleFilter={ruleFilter} setRuleFilter={setRuleFilter}
-              monthLabel={monthLabel} shiftMonth={shiftMonth}
-              monthExpenses={monthExpenses} transactions={transactions} monthCursor={monthCursor}
-              spentInCategory={spentInCategory} budgetFor={budgetFor}
-            />
-          )}
-
-          {screen === "calendar" && (
-            <CalendarScreen
-              monthCursor={monthCursor} shiftMonth={shiftMonth} monthLabel={monthLabel}
-              monthExpenses={monthExpenses}
-              onDayClick={(d) => setDayDetail(d)}
-            />
-          )}
-
-          {screen === "statement" && (
-            <StatementScreen
-              categories={categories} monthLabel={monthLabel} shiftMonth={shiftMonth}
-              monthCursor={monthCursor}
-              monthExpenses={monthExpenses} totalIncomeMonth={totalIncomeMonth}
-              totalSpentMonth={totalSpentMonth} budgetFor={budgetFor} spentInCategory={spentInCategory}
-            />
-          )}
-
-          {screen === "log" && (
-            <LogScreen
-              transactions={transactions}
-              onAdd={(dateStr) => { setPrefillDate(dateStr); setAddOpen("expense"); }}
-              onDelete={(id) => setConfirmDel({ type: "tx", id })}
-              onEdit={(t) => { setEditingTx(t); setAddOpen(t.type); }}
-            />
-          )}
-
-          {screen === "categories" && (
-            <CategoriesScreen
-              categories={categories} transactions={transactions}
-              spentInCategory={spentInCategory} budgetFor={budgetFor}
-              onAddSub={addSubcategory} onEditSub={editSub}
-              onDeleteSub={(mainId, subId) => setConfirmDel({ type: "sub", mainId, subId })}
-            />
-          )}
-
-          {screen === "goals" && (
-            <GoalsScreen goals={goals} onOpen={(g) => setGoalDetail(g)} onAdd={() => setGoalDetail("new")} />
-          )}
-
-          {screen === "rules" && (
-            <RulesScreen categories={categories} onApply={applyRule} />
-          )}
-
-          {screen === "profile" && (
-            <ProfileScreen profile={profile} setProfile={setProfile} saveNote={saveNote} theme={theme} setTheme={setTheme} />
-          )}
-        </div>
-
-        {/* Bottom nav */}
-        <div className="no-print fixed bottom-0 w-full flex justify-center pb-5 pt-3" style={{ maxWidth: 430, background: `linear-gradient(0deg, ${colors.bgBottom} 55%, transparent)` }}>
-          <div className="flex items-center gap-2 rounded-full px-3 py-2" style={{ background: colors.navBg, backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
-            <NavBtn icon={<Home size={19} />} active={screen === "home"} onClick={() => setScreen("home")} />
-            <NavBtn icon={<PieIcon size={19} />} active={screen === "stats"} onClick={() => setScreen("stats")} />
-            <button onClick={() => { setPrefillDate(null); setAddOpen("expense"); }} className="flex items-center justify-center rounded-full" style={{ width: 48, height: 48, background: LIME, color: INK, border: "none", margin: "0 2px" }}>
-              <Plus size={22} />
-            </button>
-            <NavBtn icon={<CalendarIcon size={19} />} active={screen === "calendar"} onClick={() => setScreen("calendar")} />
-            <NavBtn icon={<FileText size={19} />} active={screen === "log"} onClick={() => setScreen("log")} />
-          </div>
-        </div>
-
-        {/* ---- Overlays ---- */}
-        {moreOpen && (
-          <Sheet title="Menú" onClose={() => setMoreOpen(false)}>
-            <MenuList
-              onNavigate={(s) => { setScreen(s); setMoreOpen(false); }}
-              onViewMode={() => { setMoreOpen(false); setViewModeOpen(true); }}
-            />
-          </Sheet>
-        )}
-
-        {viewModeOpen && (
-          <Sheet title="Modo de vista" onClose={() => setViewModeOpen(false)}>
-            <ViewModeEditor profile={profile} setProfile={setProfile} onClose={() => setViewModeOpen(false)} />
-          </Sheet>
-        )}
-
-        {searchOpen && (
-          <Sheet title="Buscar gastos" onClose={() => setSearchOpen(false)}>
-            <TextField placeholder="Concepto o nota…" value={searchQ} onChange={(e) => setSearchQ(e.target.value)} autoFocus />
-            <div className="flex flex-col gap-2 mt-2">
-              {transactions.filter((t) => t.type === "expense" && (t.conceptName + " " + (t.note || "")).toLowerCase().includes(searchQ.toLowerCase()) && searchQ.length > 0)
-                .slice(0, 30).map((t) => (
-                  <div key={t.id} className="flex items-center justify-between rounded-xl px-3 py-2" style={{ background: "#F4F5F7" }}>
-                    <div>
-                      <div style={{ fontSize: 16, fontWeight: 600 }}>{t.conceptName}</div>
-                      <div style={{ fontSize: 13, color: MUTED }}>{t.date} · {t.subName}</div>
-                    </div>
-                    <div className="num" style={{ fontWeight: 700 }}>{fmt(t.amount)}</div>
-                  </div>
-                ))}
-              {searchQ.length > 0 && transactions.filter((t) => t.type === "expense" && (t.conceptName + " " + (t.note || "")).toLowerCase().includes(searchQ.toLowerCase())).length === 0 && (
-                <div style={{ fontSize: 15, color: MUTED, textAlign: "center", padding: "20px 0" }}>Sin resultados</div>
+            <main key={screen} className="screen-in flex-1" style={{ padding: "0 20px 130px" }}>
+              {screen === "home" && (
+                <HomeScreen
+                  profile={profile} categories={categories} monthLabel={monthLabel} shiftMonth={shiftMonth}
+                  budgetBase={budgetBase} expectedIncome={expectedIncome} receivedIncome={totalIncomeMonth}
+                  totalSpentMonth={totalSpentMonth} spentInCategory={spentInCategory} budgetFor={budgetFor}
+                  monthExpenses={monthExpenses} monthIncomes={monthIncomes} transactions={transactions}
+                  onOpenTx={openTx} onAddExpense={() => openAdd("expense")} onAddIncome={() => openAdd("income")}
+                  ruleInfo={ruleInfo} onSeeAll={() => go("log")}
+                />
               )}
-            </div>
-          </Sheet>
-        )}
+              {screen === "stats" && (
+                <StatsScreen categories={categories} ruleFilter={ruleFilter} setRuleFilter={setRuleFilter} monthLabel={monthLabel} shiftMonth={shiftMonth} monthExpenses={monthExpenses} transactions={transactions} monthCursor={monthCursor} spentInCategory={spentInCategory} budgetFor={budgetFor} ruleInfo={ruleInfo} />
+              )}
+              {screen === "calendar" && (
+                <CalendarScreen monthCursor={monthCursor} shiftMonth={shiftMonth} monthLabel={monthLabel} monthExpenses={monthExpenses} onDayClick={setDayDetail} />
+              )}
+              {screen === "statement" && (
+                <StatementScreen categories={categories} monthLabel={monthLabel} shiftMonth={shiftMonth} monthCursor={monthCursor} monthExpenses={monthExpenses} totalIncomeMonth={totalIncomeMonth} totalSpentMonth={totalSpentMonth} budgetFor={budgetFor} spentInCategory={spentInCategory} ruleInfo={ruleInfo} />
+              )}
+              {screen === "log" && <LogScreen transactions={transactions} onAdd={(d) => openAdd("expense", d)} onOpenTx={openTx} ruleInfo={ruleInfo} />}
+              {screen === "categories" && (
+                <CategoriesScreen
+                  categories={categories} monthExpenses={monthExpenses} spentInCategory={spentInCategory} budgetFor={budgetFor} ruleInfo={ruleInfo}
+                  onCreateCategory={createCategory} onEditCategory={editCategory}
+                  onDeleteCategory={(mainId, subId) => setConfirmDel({ type: "cat", mainId, subId })}
+                  onCreateItem={createItem} onEditItem={editItem}
+                  onDeleteItem={(mainId, subId, itemId) => setConfirmDel({ type: "item", mainId, subId, itemId })}
+                />
+              )}
+              {screen === "goals" && <GoalsScreen goals={goals} onOpen={setGoalDetail} onAdd={() => setGoalDetail("new")} />}
+              {screen === "rules" && <RulesScreen categories={categories} onApply={applyRule} />}
+              {screen === "profile" && <ProfileScreen profile={profile} setProfile={setProfile} saveNote={saveNote} appearance={appearance} setAppearance={setAppearance} />}
+            </main>
 
-        {addOpen && (
-          <AddTransactionSheet
-            kind={addOpen}
-            categories={categories}
-            profile={profile}
-            defaultDate={prefillDate || todayISO()}
-            editingTx={editingTx}
-            onClose={() => { setAddOpen(null); setPrefillDate(null); setEditingTx(null); }}
-            onSave={(tx, newSub) => {
-              if (newSub) addSubcategory(tx.mainId, newSub.name, newSub.icon);
-              if (editingTx) editTransaction(editingTx.id, tx); else addTransactionWithRecurrence(tx);
-              setAddOpen(null); setPrefillDate(null); setEditingTx(null);
-            }}
-            onCancelFutureRecurrences={(groupId, fromDate) => { setConfirmDel({ type: "recurring-future", groupId, fromDate }); setAddOpen(null); setEditingTx(null); }}
-            onUpdateIncomeDefault={(amount, periodicity) => setProfile((p) => ({ ...p, incomeAmount: amount, incomePeriodicity: periodicity }))}
-            ensureSubFor={ensureSub}
-          />
-        )}
+            {/* Bottom nav — floating glass bar */}
+            <nav className="no-print fixed left-0 right-0 flex justify-center" style={{ bottom: "calc(env(safe-area-inset-bottom) + 16px)", zIndex: 30, pointerEvents: "none" }}>
+              <div className="flex items-center gap-1" style={{ pointerEvents: "auto", padding: 6, borderRadius: 999, background: "var(--nav)", WebkitBackdropFilter: "blur(28px) saturate(190%)", backdropFilter: "blur(28px) saturate(190%)", border: "1px solid var(--glass-border)", boxShadow: "inset 0 1px 0 var(--glass-hi), 0 16px 40px -16px var(--shadow)" }}>
+                <NavBtn icon={Home} label="Inicio" active={screen === "home"} onClick={() => go("home")} />
+                <NavBtn icon={PieIcon} label="Estadísticas" active={screen === "stats"} onClick={() => go("stats")} />
+                <button onClick={() => openAdd("expense")} aria-label="Registrar gasto" className="press flex items-center justify-center" style={{ width: 56, height: 56, borderRadius: 999, background: "var(--accent)", color: "var(--on-accent)", border: "none", margin: "0 4px", boxShadow: "0 10px 22px -10px var(--accent)" }}>
+                  <Plus size={26} strokeWidth={2.4} />
+                </button>
+                <NavBtn icon={CalendarIcon} label="Calendario" active={screen === "calendar"} onClick={() => go("calendar")} />
+                <NavBtn icon={ListIcon} label="Registro" active={screen === "log"} onClick={() => go("log")} />
+              </div>
+            </nav>
 
-        {dayDetail && (
-          <Sheet title={dayDetail} onClose={() => setDayDetail(null)}>
-            <DayDetail
-              date={dayDetail}
-              transactions={transactions.filter((t) => t.date === dayDetail && t.type === "expense")}
-              onDelete={(id) => setConfirmDel({ type: "tx", id })}
-              onEdit={(t) => { setEditingTx(t); setDayDetail(null); setAddOpen(t.type); }}
-              onAdd={() => { setPrefillDate(dayDetail); setDayDetail(null); setAddOpen("expense"); }}
-            />
-          </Sheet>
-        )}
+            <Toast text={toast} />
 
-        {goalDetail && (
-          <Sheet title={goalDetail === "new" ? "Nueva meta" : goalDetail.name} onClose={() => setGoalDetail(null)}>
-            <GoalDetail
-              goal={goalDetail === "new" ? null : goals.find((g) => g.id === goalDetail.id)}
-              onCreate={(g) => {
-                const { initialSaved, ...goalFields } = g;
-                const contributions = initialSaved > 0 ? [{ id: uid("c"), amount: initialSaved, date: todayISO(), note: "Ahorro inicial" }] : [];
-                setGoals((prev) => [...prev, { ...goalFields, id: uid("goal"), createdAt: todayISO(), contributions }]);
-                setGoalDetail(null);
-              }}
-              onContribute={(goalId, amount, note) => {
-                setGoals((prev) => prev.map((g) => g.id === goalId ? { ...g, contributions: [...g.contributions, { id: uid("c"), amount: Number(amount), date: todayISO(), note }] } : g));
-              }}
-              onDelete={(goalId) => { setConfirmDel({ type: "goal", id: goalId }); setGoalDetail(null); }}
-            />
-          </Sheet>
-        )}
+            {/* ---- Overlays ---- */}
+            {moreOpen && (
+              <Sheet title="Menú" onClose={() => setMoreOpen(false)}>
+                <MenuList onNavigate={(s) => { go(s); setMoreOpen(false); }} onViewMode={() => { setMoreOpen(false); setViewModeOpen(true); }} />
+              </Sheet>
+            )}
 
-        {confirmDel && (
-          <Confirm
-            text={confirmDel.type === "recurring-future" ? "Esto va a cancelar los pagos futuros de esta suscripción. Los gastos ya pasados no se tocan. ¿Confirmas?" : "¿Seguro que quieres eliminar esto? No se puede deshacer."}
-            confirmLabel={confirmDel.type === "recurring-future" ? "Cancelar futuros" : "Eliminar"}
-            onCancel={() => setConfirmDel(null)}
-            onConfirm={() => {
-              if (confirmDel.type === "tx") deleteTransaction(confirmDel.id);
-              if (confirmDel.type === "sub") deleteSub(confirmDel.mainId, confirmDel.subId);
-              if (confirmDel.type === "recurring-future") cancelFutureRecurrences(confirmDel.groupId, confirmDel.fromDate);
-              if (confirmDel.type === "goal") setGoals((prev) => prev.filter((g) => g.id !== confirmDel.id));
-              setConfirmDel(null);
-            }}
-          />
-        )}
+            {viewModeOpen && (
+              <Sheet title="Periodo de Inicio" onClose={() => setViewModeOpen(false)}>
+                <ViewModeEditor profile={profile} setProfile={setProfile} onClose={() => setViewModeOpen(false)} />
+              </Sheet>
+            )}
+
+            {searchOpen && (
+              <Sheet title="Buscar" onClose={() => { setSearchOpen(false); setSearchQ(""); }}>
+                <input className="field" placeholder="Busca por descripción, categoría o nota" value={searchQ} onChange={(e) => setSearchQ(e.target.value)} autoFocus />
+                <div style={{ marginTop: 6 }}>
+                  {searchResults.map((t) => (
+                    <TxRow key={t.id} t={t} onClick={() => { setSearchOpen(false); setSearchQ(""); openTx(t); }} ruleName={t.mainId ? ruleInfo(t.mainId).name : null} ruleColor={t.mainId ? ruleInfo(t.mainId).color : null} />
+                  ))}
+                  {searchQ.trim() && searchResults.length === 0 && <EmptyNote text={`Nada coincide con "${searchQ.trim()}".`} />}
+                </div>
+              </Sheet>
+            )}
+
+            {addOpen && (
+              <AddTransactionSheet
+                kind={addOpen}
+                categories={categories}
+                profile={profile}
+                defaultDate={prefillDate || todayISO()}
+                editingTx={editingTx}
+                ruleColor={(id) => ruleInfo(id).color}
+                remainingFor={(r) => budgetFor(r) - spentInCategory(r.id)}
+                onClose={closeAdd}
+                onCreateCategory={createCategory}
+                onCreateItem={createItem}
+                onSave={(tx) => {
+                  if (editingTx) editTransaction(editingTx.id, tx); else addTransactionWithRecurrence(tx);
+                  // Jump to the month of what was just saved so it's visible right away
+                  const [y, m] = tx.date.split("-").map(Number);
+                  setMonthCursor({ y, m: m - 1 });
+                  flash(editingTx ? "Cambios guardados" : tx.type === "income" ? "Ingreso guardado" : "Gasto guardado");
+                  closeAdd();
+                }}
+                onDelete={(id) => { setConfirmDel({ type: "tx", id }); closeAdd(); }}
+                onCancelFutureRecurrences={(groupId, fromDate) => { setConfirmDel({ type: "recurring-future", groupId, fromDate }); closeAdd(); }}
+                onUpdateIncomeDefault={(amount, periodicity) => setProfile((p) => ({ ...p, incomeAmount: amount, incomePeriodicity: periodicity }))}
+              />
+            )}
+
+            {dayDetail && (
+              <Sheet title={fmtDayLong(dayDetail)} onClose={() => setDayDetail(null)}>
+                <DayDetail
+                  transactions={transactions.filter((t) => t.date === dayDetail && t.type === "expense")}
+                  onOpenTx={(t) => { setDayDetail(null); openTx(t); }}
+                  onAdd={() => { const d = dayDetail; setDayDetail(null); openAdd("expense", d); }}
+                  ruleInfo={ruleInfo}
+                />
+              </Sheet>
+            )}
+
+            {goalDetail && (
+              <Sheet title={goalDetail === "new" ? "Nueva meta" : goalDetail.name} onClose={() => setGoalDetail(null)}>
+                <GoalDetail
+                  goal={goalDetail === "new" ? null : goals.find((g) => g.id === goalDetail.id)}
+                  onCreate={(g) => {
+                    const { initialSaved, ...fields } = g;
+                    const contributions = initialSaved > 0 ? [{ id: uid("c"), amount: initialSaved, date: todayISO(), note: "Ahorro inicial" }] : [];
+                    setGoals((prev) => [...prev, { ...fields, id: uid("goal"), createdAt: todayISO(), contributions }]);
+                    setGoalDetail(null);
+                    flash("Meta creada");
+                  }}
+                  onContribute={(goalId, amount, note) => {
+                    setGoals((prev) => prev.map((g) => (g.id === goalId ? { ...g, contributions: [...g.contributions, { id: uid("c"), amount: Number(amount), date: todayISO(), note }] } : g)));
+                    flash("Aportación guardada");
+                  }}
+                  onDelete={(goalId) => { setConfirmDel({ type: "goal", id: goalId }); setGoalDetail(null); }}
+                />
+              </Sheet>
+            )}
+
+            {confirmDel && (
+              <Confirm
+                text={
+                  confirmDel.type === "recurring-future" ? "Se van a borrar los siguientes pagos de esta serie. Los que ya pasaron se quedan."
+                    : confirmDel.type === "cat" ? "¿Eliminar esta categoría y sus subcategorías? Los gastos ya registrados se conservan."
+                    : confirmDel.type === "item" ? "¿Eliminar esta subcategoría? Los gastos ya registrados se conservan."
+                    : "¿Seguro que quieres eliminarlo? No se puede deshacer."
+                }
+                confirmLabel={confirmDel.type === "recurring-future" ? "Borrar siguientes" : "Eliminar"}
+                onCancel={() => setConfirmDel(null)}
+                onConfirm={() => {
+                  const c = confirmDel;
+                  if (c.type === "tx") deleteTransaction(c.id);
+                  if (c.type === "cat") deleteCategory(c.mainId, c.subId);
+                  if (c.type === "item") deleteItem(c.mainId, c.subId, c.itemId);
+                  if (c.type === "recurring-future") cancelFutureRecurrences(c.groupId, c.fromDate);
+                  if (c.type === "goal") setGoals((prev) => prev.filter((g) => g.id !== c.id));
+                  setConfirmDel(null);
+                  flash("Eliminado");
+                }}
+              />
+            )}
+          </div>
+        </div>
       </div>
-    </div>
     </ThemeContext.Provider>
   );
 }
 
-function NavBtn({ icon, active, onClick }) {
-  const c = useColors();
+function NavBtn({ icon: Icon, label, active, onClick }) {
   return (
-    <button onClick={onClick} className="flex items-center justify-center rounded-full" style={{ width: 40, height: 40, background: active ? c.pillBg : "transparent", color: active ? LIME : c.onBgMuted, border: "none" }}>
-      {icon}
+    <button onClick={onClick} aria-label={label} aria-current={active ? "page" : undefined} className="press flex items-center justify-center" style={{ width: 48, height: 48, borderRadius: 999, border: "none", background: active ? "var(--accent-soft)" : "transparent", color: active ? "var(--accent-ink)" : "var(--muted)" }}>
+      <Icon size={21} strokeWidth={active ? 2.4 : 2} />
     </button>
-  );
-}
-
-function MenuList({ onNavigate, onViewMode }) {
-  const items = [
-    { key: "home", label: "Inicio", icon: Home },
-    { key: "log", label: "Registro de gastos", icon: ListIcon },
-    { key: "rules", label: "Reglas financieras", icon: Sliders },
-    { key: "viewmode", label: "Modo de vista", icon: SlidersHorizontal, action: "viewmode" },
-    { key: "categories", label: "Categorías", icon: Wallet },
-    { key: "goals", label: "Metas de ahorro", icon: PiggyBank },
-    { key: "statement", label: "Estado de cuenta", icon: FileText },
-    { key: "stats", label: "Estadísticas", icon: PieIcon },
-    { key: "calendar", label: "Calendario", icon: CalendarIcon },
-    { key: "profile", label: "Perfil y configuración", icon: Settings },
-  ];
-  return (
-    <div className="flex flex-col gap-1">
-      {items.map((it) => (
-        <button key={it.key} onClick={() => it.action === "viewmode" ? onViewMode() : onNavigate(it.key)} className="flex items-center gap-3 rounded-xl px-3 py-3" style={{ background: "#F7F8F9", border: "none", textAlign: "left" }}>
-          <it.icon size={18} color={INK} />
-          <span style={{ fontSize: 16, fontWeight: 600, color: INK }}>{it.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Onboarding                                                              */
-/* ---------------------------------------------------------------------- */
-
-function Onboarding({ onDone }) {
-  const [step, setStep] = useState(0);
-  const [name, setName] = useState("");
-  const [amount, setAmount] = useState("");
-  const [periodicity, setPeriodicity] = useState("mensual");
-  const [rulePreset, setRulePreset] = useState("50/30/20");
-  const [customCats, setCustomCats] = useState([{ id: uid(), name: "", percent: "" }]);
-
-  const customSum = customCats.reduce((s, c) => s + (Number(c.percent) || 0), 0);
-
-  function finish() {
-    let ruleCats;
-    if (rulePreset === "personalizada") {
-      ruleCats = customCats.filter((c) => c.name.trim()).map((c) => ({ id: uid("rc"), name: c.name.trim().toUpperCase(), percent: Number(c.percent) || 0 }));
-    } else {
-      ruleCats = RULE_PRESETS[rulePreset].map((c) => ({ ...c, id: uid("rc_" + c.id) }));
-    }
-    const profile = { name: name.trim() || "Usuario", incomeAmount: Number(amount) || 0, incomePeriodicity: periodicity, ruleName: rulePreset, viewMode: periodicity };
-    const cats = ruleCats.map((rc) => ({ id: rc.id, name: rc.name, percent: rc.percent, subcategories: [] }));
-    onDone(profile, cats);
-  }
-
-  return (
-    <div className="min-h-screen w-full flex justify-center" style={{ background: `linear-gradient(180deg, ${PALETTES.dark.bgTop}, ${PALETTES.dark.bgBottom})`, fontFamily: "'Urbanist', system-ui, sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800;900&display=swap');`}</style>
-      <div className="w-full flex flex-col px-6 py-10" style={{ maxWidth: 430, color: "#fff" }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: LIME, letterSpacing: 1 }}>PASO {step + 1} DE 3</div>
-
-        {step === 0 && (
-          <div className="mt-4">
-            <h1 style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.25 }}>¿Cómo te llamas?</h1>
-            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 16, marginTop: 8 }}>Así vamos a saludarte cada vez que abras la app.</p>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" className="w-full rounded-xl mt-6" style={{ padding: "14px 16px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 18 }} />
-            <button onClick={() => name.trim() && setStep(1)} disabled={!name.trim()} className="w-full rounded-xl mt-8 font-bold" style={{ padding: "14px", background: name.trim() ? LIME : "rgba(255,255,255,0.15)", color: name.trim() ? INK : "rgba(255,255,255,0.4)", border: "none" }}>Continuar</button>
-          </div>
-        )}
-
-        {step === 1 && (
-          <div className="mt-4">
-            <h1 style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.25 }}>¿Cuál es tu ingreso principal?</h1>
-            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 16, marginTop: 8 }}>Con esto calculamos cuánto te toca por categoría.</p>
-            <div className="relative mt-6">
-              <span style={{ position: "absolute", left: 16, top: 14, color: "rgba(255,255,255,0.5)" }}>$</span>
-              <input value={formatAmountInput(amount)} onChange={(e) => setAmount(cleanAmountInput(e.target.value))} placeholder="0.00" inputMode="decimal" className="w-full rounded-xl" style={{ padding: "14px 16px 14px 30px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 18 }} />
-            </div>
-            <div className="grid grid-cols-2 gap-2 mt-4">
-              {["diaria", "semanal", "quincenal", "mensual"].map((p) => (
-                <button key={p} onClick={() => setPeriodicity(p)} className="rounded-xl py-3 capitalize" style={{ background: periodicity === p ? LIME : "rgba(255,255,255,0.1)", color: periodicity === p ? INK : "#fff", border: "none", fontWeight: 600, fontSize: 15 }}>{p}</button>
-              ))}
-            </div>
-            <div className="flex gap-2 mt-8">
-              <button onClick={() => setStep(0)} className="rounded-xl px-5" style={{ background: "rgba(255,255,255,0.1)", color: "#fff", border: "none" }}><ChevronLeft size={18} /></button>
-              <button onClick={() => Number(amount) > 0 && setStep(2)} disabled={!(Number(amount) > 0)} className="flex-1 rounded-xl font-bold" style={{ padding: "14px", background: Number(amount) > 0 ? LIME : "rgba(255,255,255,0.15)", color: Number(amount) > 0 ? INK : "rgba(255,255,255,0.4)", border: "none" }}>Continuar</button>
-            </div>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="mt-4">
-            <h1 style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.25 }}>Elige tu regla financiera</h1>
-            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 16, marginTop: 8 }}>Así repartimos tu ingreso entre categorías cada mes.</p>
-            <div className="flex flex-col gap-2 mt-6">
-              {Object.entries(RULE_PRESETS).map(([key, cats]) => (
-                <button key={key} onClick={() => setRulePreset(key)} className="rounded-xl px-4 py-3 text-left" style={{ background: rulePreset === key ? LIME : "rgba(255,255,255,0.1)", border: "none" }}>
-                  <div style={{ fontWeight: 700, color: rulePreset === key ? INK : "#fff", fontSize: 16 }}>Regla {key}</div>
-                  <div style={{ fontSize: 14, color: rulePreset === key ? "#3A3A00" : "rgba(255,255,255,0.55)" }}>{cats.map((c) => `${c.name} ${c.percent}%`).join(" · ")}</div>
-                </button>
-              ))}
-              <button onClick={() => setRulePreset("personalizada")} className="rounded-xl px-4 py-3 text-left" style={{ background: rulePreset === "personalizada" ? LIME : "rgba(255,255,255,0.1)", border: "none" }}>
-                <div style={{ fontWeight: 700, color: rulePreset === "personalizada" ? INK : "#fff", fontSize: 16 }}>Personalizada</div>
-                <div style={{ fontSize: 14, color: rulePreset === "personalizada" ? "#3A3A00" : "rgba(255,255,255,0.55)" }}>Define tus propias categorías y porcentajes</div>
-              </button>
-            </div>
-
-            {rulePreset === "personalizada" && (
-              <div className="mt-4 flex flex-col gap-2">
-                {customCats.map((c, i) => (
-                  <div key={c.id} className="flex gap-2">
-                    <input value={c.name} onChange={(e) => setCustomCats((prev) => prev.map((x) => x.id === c.id ? { ...x, name: e.target.value } : x))} placeholder="Nombre" className="flex-1 rounded-lg" style={{ padding: "10px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 15 }} />
-                    <input value={c.percent} onChange={(e) => setCustomCats((prev) => prev.map((x) => x.id === c.id ? { ...x, percent: e.target.value.replace(/[^0-9]/g, "") } : x))} placeholder="%" className="rounded-lg" style={{ width: 60, padding: "10px 12px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 15 }} />
-                  </div>
-                ))}
-                <button onClick={() => setCustomCats((prev) => [...prev, { id: uid(), name: "", percent: "" }])} style={{ color: LIME, background: "none", border: "none", fontSize: 15, fontWeight: 600, textAlign: "left" }}>+ Agregar categoría</button>
-                <div style={{ fontSize: 14, color: customSum === 100 ? GREEN : YELLOW }}>Suma actual: {customSum}% {customSum !== 100 && "(debe ser 100%)"}</div>
-              </div>
-            )}
-
-            <div className="flex gap-2 mt-8 mb-6">
-              <button onClick={() => setStep(1)} className="rounded-xl px-5" style={{ background: "rgba(255,255,255,0.1)", color: "#fff", border: "none" }}><ChevronLeft size={18} /></button>
-              <button
-                onClick={finish}
-                disabled={rulePreset === "personalizada" && customSum !== 100}
-                className="flex-1 rounded-xl font-bold"
-                style={{ padding: "14px", background: (rulePreset !== "personalizada" || customSum === 100) ? LIME : "rgba(255,255,255,0.15)", color: (rulePreset !== "personalizada" || customSum === 100) ? INK : "rgba(255,255,255,0.4)", border: "none" }}
-              >
-                Empezar a usar la app
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Home                                                                     */
-/* ---------------------------------------------------------------------- */
-
-function HomeScreen({ profile, categories, monthLabel, shiftMonth, monthlyIncome, totalSpentMonth, totalIncomeMonth, spentInCategory, budgetFor, monthExpenses, monthIncomes = [], transactions, deleteTransaction, onEditTransaction, onAddExpense, onAddIncome }) {
-  const c = useColors();
-  const viewMode = profile.viewMode || "mensual";
-  const customDays = profile.viewModeCustomDays || 7;
-  const period = viewMode !== "mensual" ? getViewPeriod(transactions, viewMode, customDays) : null;
-
-  const heroLabel = period ? `DISPONIBLE ${period.label.toUpperCase()}` : "DISPONIBLE ESTE MES";
-  const heroBudget = period ? monthlyIncome / period.divisor : monthlyIncome;
-  const heroSpent = period ? period.items.reduce((s, t) => s + t.amount, 0) : totalSpentMonth;
-  const heroIncomeLabel = period ? "Presupuesto" : "Ingresos";
-  // Show what really came in, or the expected salary if nothing was registered yet
-  const heroIncomeVal = period ? heroBudget : monthlyIncome;
-  const recent = [...monthExpenses, ...monthIncomes].sort((a, b) => (b.date + (b.time || "")).localeCompare(a.date + (a.time || "")));
-  const remaining = heroBudget - heroSpent;
-
-  return (
-    <div>
-      <MonthSwitcher label={monthLabel} onPrev={() => shiftMonth(-1)} onNext={() => shiftMonth(1)} />
-
-      <div className="rounded-3xl mt-3 p-5" style={{ background: LIME, color: INK, position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, borderRadius: "50%", background: "rgba(255,255,255,0.25)", filter: "blur(2px)" }} />
-        <div style={{ fontSize: 14, fontWeight: 700, opacity: 0.7 }}>{heroLabel}</div>
-        <div className="num" style={{ fontSize: 36, fontWeight: 700, marginTop: 4 }}>{fmt(remaining)}</div>
-        <div className="flex gap-4 mt-3" style={{ fontSize: 14, fontWeight: 600 }}>
-          <div>{heroIncomeLabel}: <span className="num">{fmt(heroIncomeVal)}</span></div>
-          <div>Gastado: <span className="num">{fmt(heroSpent)}</span></div>
-        </div>
-      </div>
-
-      <div className="flex gap-2 mt-3">
-        <button onClick={onAddExpense} className="flex-1 rounded-2xl py-3 flex items-center justify-center gap-2" style={{ background: SLATE_CARD, border: "none", color: "#fff", fontWeight: 600, fontSize: 15 }}><TrendingDown size={16} color={RED} /> Registrar gasto</button>
-        <button onClick={onAddIncome} className="flex-1 rounded-2xl py-3 flex items-center justify-center gap-2" style={{ background: SLATE_CARD, border: "none", color: "#fff", fontWeight: 600, fontSize: 15 }}><TrendingUp size={16} color={GREEN} /> Registrar ingreso</button>
-      </div>
-
-      <div style={{ color: c.onBg, fontWeight: 700, fontSize: 17, marginTop: 20, marginBottom: 10 }}>
-        Tus reglas {period ? `— ${period.label}` : "este mes"}
-      </div>
-      <div className="flex flex-col gap-3">
-        {categories.map((cat) => {
-          const spent = period ? period.items.filter((t) => t.mainId === cat.id).reduce((s, t) => s + t.amount, 0) : spentInCategory(cat.id);
-          const budget = period ? budgetFor(cat) / period.divisor : budgetFor(cat);
-          const diff = budget - spent;
-          const color = statusColor(spent, budget);
-          const pct = budget > 0 ? Math.min(100, (spent / budget) * 100) : 0;
-          return (
-            <div key={cat.id} className="rounded-2xl p-4" style={{ background: CARD }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 16, color: INK }}>{cat.percent}% {cat.name}</div>
-                  <div style={{ fontSize: 14, color: MUTED }}>Presupuesto {fmt(budget)}</div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div className="num" style={{ fontWeight: 700, fontSize: 17, color }}>{diff >= 0 ? "Disponible" : "Te pasaste por"}</div>
-                  <div className="num" style={{ fontWeight: 700, fontSize: 17, color }}>{fmt(Math.abs(diff))}</div>
-                </div>
-              </div>
-              <div className="rounded-full mt-3" style={{ height: 7, background: "#EFF1F3" }}>
-                <div className="rounded-full" style={{ height: 7, width: `${pct}%`, background: color }} />
-              </div>
-            </div>
-          );
-        })}
-        {categories.length === 0 && <EmptyNote text="Aún no tienes reglas configuradas." />}
-      </div>
-
-      <div style={{ color: c.onBg, fontWeight: 700, fontSize: 17, marginTop: 22, marginBottom: 10 }}>Movimientos recientes</div>
-      <div className="flex flex-col gap-2">
-        {recent.slice(0, 8).map((t) => (
-          <TxRow key={t.id} t={t} onDelete={() => deleteTransaction(t.id)} onEdit={() => onEditTransaction(t)} />
-        ))}
-        {recent.length === 0 && <EmptyNote text="Sin movimientos registrados este mes todavía." />}
-      </div>
-    </div>
-  );
-}
-
-function TxRow({ t, onDelete, onEdit }) {
-  const Icon = iconFor(t.icon || "wallet");
-  const iconColor = colorForIcon(t.icon || "wallet");
-  return (
-    <div className="rounded-2xl p-3 flex items-center justify-between" style={{ background: CARD }}>
-      <div className="flex items-center gap-3">
-        <div className="num flex flex-col items-center justify-center rounded-xl" style={{ minWidth: 64, padding: "6px 4px", background: t.type === "income" ? "#EAFBF1" : "#FBEDED" }}>
-          <div style={{ fontWeight: 800, fontSize: 16, color: t.type === "income" ? GREEN : RED }}>{t.type === "income" ? "+" : "-"}{fmt(t.amount)}</div>
-        </div>
-        <div>
-          <div style={{ fontWeight: 600, fontSize: 16, color: INK }}>{t.conceptName} {t.recurringGroupId && <span title="Pago periódico" style={{ fontSize: 12 }}>🔁</span>}</div>
-          <div style={{ fontSize: 13, color: MUTED }}>{t.subName}{t.time ? ` · ${t.time}` : ""} · {t.date}</div>
-        </div>
-      </div>
-      <div className="flex items-center gap-1">
-        <div className="rounded-full flex items-center justify-center" style={{ width: 34, height: 34, background: iconColor + "22" }}><Icon size={16} color={iconColor} /></div>
-        {onEdit && <button onClick={onEdit} style={{ background: "none", border: "none", padding: 6 }}><Edit2 size={15} color={MUTED} /></button>}
-        <button onClick={onDelete} style={{ background: "none", border: "none", padding: 6 }}><Trash2 size={15} color={MUTED} /></button>
-      </div>
-    </div>
-  );
-}
-
-function EmptyNote({ text }) {
-  const c = useColors();
-  return <div className="rounded-2xl p-5 text-center" style={{ background: c.emptyBg, color: c.onBgMuted, fontSize: 15 }}>{text}</div>;
-}
-
-function MonthSwitcher({ label, onPrev, onNext }) {
-  const c = useColors();
-  return (
-    <div className="flex items-center justify-between rounded-full px-2 py-1" style={{ background: c.pillBgSoft, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
-      <button onClick={onPrev} className="rounded-full flex items-center justify-center" style={{ width: 32, height: 32, background: c.pillBg, border: "none" }}><ChevronLeft size={16} color={c.onBg} /></button>
-      <div style={{ color: c.onBg, fontWeight: 700, fontSize: 15 }}>{label}</div>
-      <button onClick={onNext} className="rounded-full flex items-center justify-center" style={{ width: 32, height: 32, background: c.pillBg, border: "none" }}><ChevronRight size={16} color={c.onBg} /></button>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Stats                                                                    */
-/* ---------------------------------------------------------------------- */
-
-function StatsScreen({ categories, ruleFilter, setRuleFilter, monthLabel, shiftMonth, monthExpenses, transactions, monthCursor, spentInCategory, budgetFor }) {
-  const c = useColors();
-  const donutData = categories.map((c, i) => ({ name: c.name, value: spentInCategory(c.id), color: RULE_COLORS[i % RULE_COLORS.length] })).filter((d) => d.value > 0);
-
-  const filteredCats = ruleFilter === "todas" ? categories : categories.filter((c) => c.id === ruleFilter);
-  const subData = [];
-  filteredCats.forEach((cat) => {
-    cat.subcategories.forEach((sub) => {
-      const amt = monthExpenses.filter((t) => t.mainId === cat.id && t.subId === sub.id).reduce((s, t) => s + t.amount, 0);
-      if (amt > 0) subData.push({ name: sub.name, value: amt });
-    });
-  });
-  subData.sort((a, b) => b.value - a.value);
-
-  const conceptMap = {};
-  monthExpenses.filter((t) => ruleFilter === "todas" || t.mainId === ruleFilter).forEach((t) => {
-    conceptMap[t.conceptName] = (conceptMap[t.conceptName] || 0) + t.amount;
-  });
-  const conceptData = Object.entries(conceptMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
-
-  const yearData = MONTHS.map((m, i) => {
-    const key = `${monthCursor.y}-${String(i + 1).padStart(2, "0")}`;
-    const total = transactions.filter((t) => t.type === "expense" && ym(t.date) === key).reduce((s, t) => s + t.amount, 0);
-    return { name: m.slice(0, 3), value: total };
-  });
-
-  return (
-    <div>
-      <MonthSwitcher label={monthLabel} onPrev={() => shiftMonth(-1)} onNext={() => shiftMonth(1)} />
-
-      <div className="flex gap-2 mt-3 overflow-x-auto" style={{ paddingBottom: 2 }}>
-        <Pill active={ruleFilter === "todas"} onClick={() => setRuleFilter("todas")}>TODAS</Pill>
-        {categories.map((c) => <Pill key={c.id} active={ruleFilter === c.id} onClick={() => setRuleFilter(c.id)}>{c.percent}% {c.name}</Pill>)}
-      </div>
-
-      <StatCard title="Distribución del mes por regla">
-        {donutData.length === 0 ? <EmptyNote text="Sin gastos este mes." /> : (
-          <>
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie data={donutData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={3}>
-                  {donutData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                </Pie>
-                <Tooltip formatter={(v) => fmt(v)} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="flex flex-wrap gap-2 justify-center mt-1">
-              {donutData.map((d, i) => (
-                <div key={i} className="flex items-center gap-1" style={{ fontSize: 13, color: c.onBg }}>
-                  <div style={{ width: 8, height: 8, borderRadius: 4, background: d.color }} />
-                  {d.name} · {fmt(d.value)}
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </StatCard>
-
-      <StatCard title="Gasto por subcategoría">
-        {subData.length === 0 ? <EmptyNote text="Sin datos para este filtro." /> : (
-          <ResponsiveContainer width="100%" height={Math.max(120, subData.length * 34)}>
-            <BarChart data={subData} layout="vertical" margin={{ left: 10, right: 20 }}>
-              <XAxis type="number" hide />
-              <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 13, fill: INK }} />
-              <Tooltip formatter={(v) => fmt(v)} />
-              <Bar dataKey="value" fill={LIME} radius={[0, 6, 6, 0]} barSize={16} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </StatCard>
-
-      <StatCard title="Top 10 conceptos">
-        {conceptData.length === 0 ? <EmptyNote text="Sin datos para este filtro." /> : (
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={conceptData} margin={{ left: -20 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EEF0F3" />
-              <XAxis dataKey="name" tick={{ fontSize: 11, fill: INK }} interval={0} angle={-35} textAnchor="end" height={60} />
-              <YAxis tick={{ fontSize: 12, fill: INK }} />
-              <Tooltip formatter={(v) => fmt(v)} />
-              <Bar dataKey="value" fill="#5FB8FF" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </StatCard>
-
-      <StatCard title={`Comparativo anual ${monthCursor.y}`}>
-        <ResponsiveContainer width="100%" height={180}>
-          <BarChart data={yearData} margin={{ left: -20 }}>
-            <XAxis dataKey="name" tick={{ fontSize: 12, fill: INK }} />
-            <YAxis tick={{ fontSize: 12, fill: INK }} />
-            <Tooltip formatter={(v) => fmt(v)} />
-            <Bar dataKey="value" fill="#B98CFF" radius={[6, 6, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </StatCard>
-    </div>
-  );
-}
-
-function StatCard({ title, children }) {
-  return (
-    <div className="rounded-2xl p-4 mt-3" style={{ background: CARD }}>
-      <div style={{ fontWeight: 700, fontSize: 15, color: INK, marginBottom: 8 }}>{title}</div>
-      {children}
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Calendar                                                                 */
-/* ---------------------------------------------------------------------- */
-
-function CalendarScreen({ monthCursor, shiftMonth, monthLabel, monthExpenses, onDayClick }) {
-  const weeks = getMonthGrid(monthCursor.y, monthCursor.m);
-  const totalsByDay = {};
-  monthExpenses.forEach((t) => {
-    const day = Number(t.date.slice(8, 10));
-    totalsByDay[day] = (totalsByDay[day] || 0) + t.amount;
-  });
-  const monthTotal = monthExpenses.reduce((s, t) => s + t.amount, 0);
-
-  return (
-    <div>
-      <MonthSwitcher label={monthLabel} onPrev={() => shiftMonth(-1)} onNext={() => shiftMonth(1)} />
-      <div className="rounded-2xl p-4 mt-3" style={{ background: CARD }}>
-        <div className="grid grid-cols-7 mb-2">
-          {WEEKDAYS.map((w, i) => <div key={i} style={{ textAlign: "center", fontSize: 13, fontWeight: 700, color: MUTED }}>{w}</div>)}
-        </div>
-        <div className="flex flex-col gap-1">
-          {weeks.map((week, wi) => (
-            <div key={wi} className="grid grid-cols-7 gap-1">
-              {week.map((day, di) => {
-                if (!day) return <div key={di} />;
-                const total = totalsByDay[day] || 0;
-                const dateStr = `${monthCursor.y}-${String(monthCursor.m + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                return (
-                  <button key={di} onClick={() => onDayClick(dateStr)} className="rounded-lg flex flex-col items-center justify-center" style={{ aspectRatio: "1", background: total > 0 ? "#FFF3D6" : "#F7F8F9", border: "none", padding: 2 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: INK }}>{day}</div>
-                    {total > 0 && <div className="num" style={{ fontSize: 10, color: RED, fontWeight: 700 }}>{total >= 1000 ? `${Math.round(total / 100) / 10}K` : Math.round(total)}</div>}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="rounded-2xl p-4 mt-3 flex items-center justify-between" style={{ background: LIME }}>
-        <div style={{ fontWeight: 700, fontSize: 15, color: INK }}>Total del mes</div>
-        <div className="num" style={{ fontWeight: 700, fontSize: 19, color: INK }}>{fmt(monthTotal)}</div>
-      </div>
-    </div>
-  );
-}
-
-function DayDetail({ date, transactions, onDelete, onEdit, onAdd }) {
-  const total = transactions.reduce((s, t) => s + t.amount, 0);
-  return (
-    <div>
-      <div className="flex flex-col gap-2 mb-4">
-        {transactions.map((t) => <TxRow key={t.id} t={t} onDelete={() => onDelete(t.id)} onEdit={() => onEdit(t)} />)}
-        {transactions.length === 0 && <EmptyNote text="Sin gastos registrados este día." />}
-      </div>
-      {transactions.length > 0 && <div className="flex justify-between mb-4" style={{ fontWeight: 700, fontSize: 16, color: INK }}><span>Total</span><span className="num">{fmt(total)}</span></div>}
-      <PrimaryBtn onClick={onAdd}>+ Agregar gasto este día</PrimaryBtn>
-    </div>
-  );
-}
-
-// Given the full transaction list, returns the expenses + budget divisor for
-// the "modo de vista" currently selected (daily/weekly/biweekly/custom),
-// always anchored to today's real calendar date.
-function getViewPeriod(transactions, viewMode, customDays) {
-  const today = todayISO();
-  const expenses = transactions.filter((t) => t.type === "expense");
-  if (viewMode === "diaria") {
-    return { label: "hoy", items: expenses.filter((t) => t.date === today), divisor: 30 };
-  }
-  if (viewMode === "semanal") {
-    const mon = mondayOf(today), sun = addDays(mon, 6);
-    return { label: "esta semana", items: expenses.filter((t) => t.date >= mon && t.date <= sun), divisor: 4.33 };
-  }
-  if (viewMode === "quincenal") {
-    const d = new Date(today + "T00:00:00");
-    const y = d.getFullYear(), m = d.getMonth(), day = d.getDate();
-    let start, end;
-    if (day <= 15) { start = `${y}-${String(m + 1).padStart(2, "0")}-01`; end = `${y}-${String(m + 1).padStart(2, "0")}-15`; }
-    else { const lastDay = new Date(y, m + 1, 0).getDate(); start = `${y}-${String(m + 1).padStart(2, "0")}-16`; end = `${y}-${String(m + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`; }
-    return { label: "esta quincena", items: expenses.filter((t) => t.date >= start && t.date <= end), divisor: 2 };
-  }
-  if (viewMode === "personalizado") {
-    const n = Math.max(1, Number(customDays) || 7);
-    const start = addDays(today, -(n - 1));
-    return { label: `últimos ${n} días`, items: expenses.filter((t) => t.date >= start && t.date <= today), divisor: 30 / n };
-  }
-  return null;
-}
-
-/* ---------------------------------------------------------------------- */
-/* Registro (log) — day / week / month chronological view                 */
-/* ---------------------------------------------------------------------- */
-
-function addDays(dateStr, n) {
-  const d = new Date(dateStr + "T00:00:00");
-  d.setDate(d.getDate() + n);
-  return localISO(d);
-}
-function addMonthsClamped(dateStr, n) {
-  const d = new Date(dateStr + "T00:00:00");
-  const day = d.getDate();
-  const target = new Date(d.getFullYear(), d.getMonth() + n, 1);
-  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
-  target.setDate(Math.min(day, lastDay));
-  return localISO(target);
-}
-// Builds the list of dates (including the original) for a recurring expense,
-// capped to a sensible horizon so we don't generate thousands of rows.
-function generateRecurringDates(startDate, recurrenceType, intervalDays) {
-  const dates = [startDate];
-  if (recurrenceType === "diaria") {
-    for (let i = 1; i <= 90; i++) dates.push(addDays(startDate, i));
-  } else if (recurrenceType === "semanal") {
-    for (let i = 1; i <= 104; i++) dates.push(addDays(startDate, i * 7));
-  } else if (recurrenceType === "quincenal") {
-    for (let i = 1; i <= 48; i++) dates.push(addDays(startDate, i * 15));
-  } else if (recurrenceType === "mensual") {
-    for (let i = 1; i <= 24; i++) dates.push(addMonthsClamped(startDate, i));
-  } else if (recurrenceType === "personalizado") {
-    const n = Math.max(1, Number(intervalDays) || 30);
-    const count = Math.min(150, Math.floor(730 / n));
-    for (let i = 1; i <= count; i++) dates.push(addDays(startDate, i * n));
-  }
-  return dates;
-}
-function mondayOf(dateStr) {
-  const d = new Date(dateStr + "T00:00:00");
-  const offset = (d.getDay() + 6) % 7;
-  return addDays(dateStr, -offset);
-}
-function fmtDayLong(dateStr) {
-  const d = new Date(dateStr + "T00:00:00");
-  const wd = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"][d.getDay()];
-  return `${wd.charAt(0).toUpperCase() + wd.slice(1)} ${d.getDate()} de ${MONTHS[d.getMonth()].toLowerCase()}`;
-}
-
-function LogScreen({ transactions, onAdd, onDelete, onEdit }) {
-  const c = useColors();
-  const [view, setView] = useState("day"); // day | week | month
-  const [cursor, setCursor] = useState(todayISO());
-  const [monthCursor, setMonthCursor] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
-
-  const expenses = transactions.filter((t) => t.type === "expense");
-  const byDate = {};
-  expenses.forEach((t) => { (byDate[t.date] = byDate[t.date] || []).push(t); });
-  Object.values(byDate).forEach((list) => list.sort((a, b) => (b.time || "").localeCompare(a.time || "")));
-
-  return (
-    <div>
-      <div className="flex gap-2 mb-3">
-        <Pill active={view === "day"} onClick={() => setView("day")}>Día</Pill>
-        <Pill active={view === "week"} onClick={() => setView("week")}>Semana</Pill>
-        <Pill active={view === "month"} onClick={() => setView("month")}>Mes</Pill>
-      </div>
-
-      {view === "day" && (
-        <DayLogView
-          cursor={cursor}
-          setCursor={setCursor}
-          items={byDate[cursor] || []}
-          onAdd={() => onAdd(cursor)}
-          onDelete={onDelete}
-          onEdit={onEdit}
-        />
-      )}
-
-      {view === "week" && (
-        <WeekLogView
-          cursor={cursor}
-          setCursor={setCursor}
-          byDate={byDate}
-          onAdd={onAdd}
-          onDelete={onDelete}
-          onEdit={onEdit}
-        />
-      )}
-
-      {view === "month" && (
-        <MonthLogView
-          monthCursor={monthCursor}
-          setMonthCursor={setMonthCursor}
-          byDate={byDate}
-          onAdd={onAdd}
-          onDelete={onDelete}
-          onEdit={onEdit}
-        />
-      )}
-    </div>
-  );
-}
-
-function DayLogView({ cursor, setCursor, items, onAdd, onDelete, onEdit }) {
-  const c = useColors();
-  const total = items.reduce((s, t) => s + t.amount, 0);
-  return (
-    <div>
-      <div className="flex items-center justify-between rounded-full px-2 py-1 mb-3" style={{ background: c.pillBgSoft, backdropFilter: "blur(8px)" }}>
-        <button onClick={() => setCursor((d) => addDays(d, -1))} className="rounded-full flex items-center justify-center" style={{ width: 32, height: 32, background: c.pillBg, border: "none" }}><ChevronLeft size={16} color={c.onBg} /></button>
-        <div style={{ color: c.onBg, fontWeight: 700, fontSize: 15, textTransform: "capitalize" }}>{fmtDayLong(cursor)}</div>
-        <button onClick={() => setCursor((d) => addDays(d, 1))} className="rounded-full flex items-center justify-center" style={{ width: 32, height: 32, background: c.pillBg, border: "none" }}><ChevronRight size={16} color={c.onBg} /></button>
-      </div>
-
-      <div className="rounded-2xl p-4 mb-3 flex items-center justify-between" style={{ background: LIME }}>
-        <div style={{ fontWeight: 700, fontSize: 15, color: INK }}>Total del día</div>
-        <div className="num" style={{ fontWeight: 700, fontSize: 19, color: INK }}>{fmt(total)}</div>
-      </div>
-
-      <div className="flex flex-col gap-2 mb-4">
-        {items.map((t) => <TxRow key={t.id} t={t} onDelete={() => onDelete(t.id)} onEdit={() => onEdit(t)} />)}
-        {items.length === 0 && <EmptyNote text="Sin gastos registrados este día." />}
-      </div>
-
-      <PrimaryBtn onClick={onAdd}>+ Agregar gasto</PrimaryBtn>
-    </div>
-  );
-}
-
-function WeekLogView({ cursor, setCursor, byDate, onAdd, onDelete, onEdit }) {
-  const c = useColors();
-  const monday = mondayOf(cursor);
-  const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
-  const weekTotal = days.reduce((s, d) => s + (byDate[d] || []).reduce((ss, t) => ss + t.amount, 0), 0);
-  const sunday = days[6];
-
-  return (
-    <div>
-      <div className="flex items-center justify-between rounded-full px-2 py-1 mb-3" style={{ background: c.pillBgSoft, backdropFilter: "blur(8px)" }}>
-        <button onClick={() => setCursor((d) => addDays(d, -7))} className="rounded-full flex items-center justify-center" style={{ width: 32, height: 32, background: c.pillBg, border: "none" }}><ChevronLeft size={16} color={c.onBg} /></button>
-        <div style={{ color: c.onBg, fontWeight: 700, fontSize: 14 }}>{monday.slice(8,10)} — {sunday.slice(8,10)} {MONTHS[Number(sunday.slice(5,7)) - 1]}</div>
-        <button onClick={() => setCursor((d) => addDays(d, 7))} className="rounded-full flex items-center justify-center" style={{ width: 32, height: 32, background: c.pillBg, border: "none" }}><ChevronRight size={16} color={c.onBg} /></button>
-      </div>
-
-      <div className="rounded-2xl p-4 mb-3 flex items-center justify-between" style={{ background: LIME }}>
-        <div style={{ fontWeight: 700, fontSize: 15, color: INK }}>Total de la semana</div>
-        <div className="num" style={{ fontWeight: 700, fontSize: 19, color: INK }}>{fmt(weekTotal)}</div>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        {days.map((d) => {
-          const items = byDate[d] || [];
-          const dayTotal = items.reduce((s, t) => s + t.amount, 0);
-          return (
-            <div key={d} className="rounded-2xl p-3" style={{ background: CARD }}>
-              <div className="flex items-center justify-between mb-2">
-                <div style={{ fontWeight: 700, fontSize: 14, color: INK, textTransform: "capitalize" }}>{fmtDayLong(d)}</div>
-                <div className="flex items-center gap-2">
-                  {dayTotal > 0 && <span className="num" style={{ fontWeight: 700, fontSize: 14, color: RED }}>{fmt(dayTotal)}</span>}
-                  <button onClick={() => onAdd(d)} className="rounded-full flex items-center justify-center" style={{ width: 22, height: 22, background: "#F2F3F5", border: "none" }}><Plus size={12} color={INK} /></button>
-                </div>
-              </div>
-              {items.length === 0 ? (
-                <div style={{ fontSize: 13, color: MUTED }}>Sin gastos.</div>
-              ) : (
-                <div className="flex flex-col gap-1">
-                  {items.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between" style={{ fontSize: 14 }}>
-                      <span style={{ color: "#5A6472" }}>{t.conceptName} {t.time && `· ${t.time}`}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="num" style={{ fontWeight: 700, color: INK }}>{fmt(t.amount)}</span>
-                        <button onClick={() => onEdit(t)} style={{ background: "none", border: "none", padding: 2 }}><Edit2 size={13} color={MUTED} /></button>
-                        <button onClick={() => onDelete(t.id)} style={{ background: "none", border: "none", padding: 2 }}><Trash2 size={13} color={MUTED} /></button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function MonthLogView({ monthCursor, setMonthCursor, byDate, onAdd, onDelete, onEdit }) {
-  const c = useColors();
-  function shift(delta) {
-    setMonthCursor((cur) => { let m = cur.m + delta, y = cur.y; if (m < 0) { m = 11; y--; } else if (m > 11) { m = 0; y++; } return { y, m }; });
-  }
-  const weeks = getMonthGrid(monthCursor.y, monthCursor.m);
-  const monthTotal = Object.entries(byDate).filter(([d]) => d.startsWith(`${monthCursor.y}-${String(monthCursor.m + 1).padStart(2, "0")}`)).reduce((s, [, items]) => s + items.reduce((ss, t) => ss + t.amount, 0), 0);
-
-  return (
-    <div>
-      <MonthSwitcher label={`${MONTHS[monthCursor.m]} ${monthCursor.y}`} onPrev={() => shift(-1)} onNext={() => shift(1)} />
-
-      <div className="rounded-2xl p-4 my-3 flex items-center justify-between" style={{ background: LIME }}>
-        <div style={{ fontWeight: 700, fontSize: 15, color: INK }}>Total del mes</div>
-        <div className="num" style={{ fontWeight: 700, fontSize: 19, color: INK }}>{fmt(monthTotal)}</div>
-      </div>
-
-      <div className="flex flex-col gap-4">
-        {weeks.map((week, wi) => {
-          const weekDays = week.filter((d) => d).map((d) => `${monthCursor.y}-${String(monthCursor.m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
-          const weekHasData = weekDays.some((d) => (byDate[d] || []).length > 0);
-          if (weekDays.length === 0) return null;
-          return (
-            <div key={wi}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: c.onBgMuted, marginBottom: 6, letterSpacing: 0.5 }}>SEMANA {wi + 1}</div>
-              {!weekHasData ? (
-                <div className="rounded-xl px-3 py-2" style={{ background: c.emptyBg, fontSize: 13, color: c.onBgMuted }}>Sin gastos esta semana.</div>
-              ) : (
-                <div className="rounded-2xl p-3" style={{ background: CARD }}>
-                  {weekDays.map((d) => {
-                    const items = byDate[d] || [];
-                    if (items.length === 0) return null;
-                    const dayTotal = items.reduce((s, t) => s + t.amount, 0);
-                    return (
-                      <div key={d} className="mb-2 pb-2" style={{ borderBottom: "1px solid #F1F2F4" }}>
-                        <div className="flex items-center justify-between mb-1">
-                          <div style={{ fontWeight: 700, fontSize: 13, color: "#3A4453", textTransform: "capitalize" }}>{fmtDayLong(d)}</div>
-                          <div className="flex items-center gap-2">
-                            <span className="num" style={{ fontWeight: 700, fontSize: 13, color: RED }}>{fmt(dayTotal)}</span>
-                            <button onClick={() => onAdd(d)} className="rounded-full flex items-center justify-center" style={{ width: 18, height: 18, background: "#F2F3F5", border: "none" }}><Plus size={10} color={INK} /></button>
-                          </div>
-                        </div>
-                        {items.map((t) => (
-                          <div key={t.id} className="flex items-center justify-between" style={{ fontSize: 13, color: "#5A6472", paddingLeft: 4 }}>
-                            <span>{t.conceptName} <span style={{ color: MUTED }}>({t.subName}{t.time ? ` · ${t.time}` : ""})</span></span>
-                            <div className="flex items-center gap-2">
-                              <span className="num" style={{ fontWeight: 600 }}>{fmt(t.amount)}</span>
-                              <button onClick={() => onEdit(t)} style={{ background: "none", border: "none", padding: 2 }}><Edit2 size={12} color={MUTED} /></button>
-                              <button onClick={() => onDelete(t.id)} style={{ background: "none", border: "none", padding: 2 }}><Trash2 size={12} color={MUTED} /></button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      <button onClick={() => onAdd(todayISO())} className="w-full rounded-xl mt-4 font-bold" style={{ padding: "13px", background: LIME, color: INK, border: "none" }}>+ Agregar gasto de hoy</button>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Statement                                                                */
-/* ---------------------------------------------------------------------- */
-
-function StatementScreen({ categories, monthLabel, shiftMonth, monthCursor, monthExpenses, totalIncomeMonth, totalSpentMonth, budgetFor, spentInCategory }) {
-  const c = useColors();
-  const [collapsed, setCollapsed] = useState({});
-  const toggle = (id) => setCollapsed((p) => ({ ...p, [id]: !p[id] }));
-
-  function catName(mainId) { return (categories.find((x) => x.id === mainId) || {}).name || "Sin categoría"; }
-
-  // Group this month's expenses into calendar weeks (Monday–Sunday)
-  const weeks = getMonthGrid(monthCursor.y, monthCursor.m);
-  const weekGroups = weeks.map((week, wi) => {
-    const dayStrs = week.filter((d) => d).map((d) => `${monthCursor.y}-${String(monthCursor.m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
-    const items = monthExpenses.filter((t) => dayStrs.includes(t.date)).sort((a, b) => a.date === b.date ? (a.time || "").localeCompare(b.time || "") : a.date.localeCompare(b.date));
-    const total = items.reduce((s, t) => s + t.amount, 0);
-    const first = dayStrs[0], last = dayStrs[dayStrs.length - 1];
-    return { key: `w${wi}`, index: wi + 1, items, total, first, last };
-  }).filter((w) => w.first);
-
-  return (
-    <div className="print-area">
-      <MonthSwitcher label={monthLabel} onPrev={() => shiftMonth(-1)} onNext={() => shiftMonth(1)} />
-      <div className="rounded-2xl p-4 mt-3" style={{ background: CARD }}>
-        <div style={{ fontWeight: 800, fontSize: 17, color: INK, marginBottom: 10 }}>ESTADO DE CUENTA — {monthLabel.toUpperCase()}</div>
-
-        {weekGroups.map((w) => {
-          const isCollapsed = collapsed[w.key];
-          const weekColor = RULE_COLORS[(w.index - 1) % RULE_COLORS.length];
-          return (
-            <div key={w.key} className="mb-8" style={{ borderRadius: 12, overflow: "hidden", border: "1px solid #EEF0F3" }}>
-              <div style={{ height: 6, background: weekColor }} />
-              <button onClick={() => toggle(w.key)} className="w-full flex items-center justify-between" style={{ background: "#FAFBFC", border: "none", padding: "10px 12px" }}>
-                <div className="flex items-center gap-2">
-                  <span style={{ background: weekColor, color: INK, fontWeight: 800, fontSize: 13, padding: "3px 10px", borderRadius: 999 }}>SEMANA {w.index}</span>
-                  <span style={{ fontWeight: 500, color: MUTED, fontSize: 13 }}>{w.first.slice(8, 10)}–{w.last.slice(8, 10)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="num" style={{ fontWeight: 700, fontSize: 14, color: RED }}>{fmt(w.total)}</span>
-                  {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-                </div>
-              </button>
-              {!isCollapsed && (
-                <div style={{ padding: "10px 12px" }}>
-                  {w.items.length === 0 ? (
-                    <div style={{ fontSize: 14, color: MUTED, padding: "6px 0" }}>Sin gastos esta semana.</div>
-                  ) : (
-                    w.items.map((t) => (
-                      <div key={t.id} className="flex items-start justify-between" style={{ fontSize: 14, color: "#5A6472", padding: "6px 0", borderBottom: "1px dashed #F1F2F4" }}>
-                        <div style={{ flex: 1, paddingRight: 8 }}>
-                          <div style={{ fontWeight: 700, color: INK }}>{t.conceptName}</div>
-                          <div style={{ color: MUTED, marginTop: 1 }}>
-                            {t.date}{t.time ? ` · ${t.time}` : ""} · {catName(t.mainId)} › {t.subName}
-                          </div>
-                          {t.note && <div style={{ color: MUTED, marginTop: 1, fontStyle: "italic" }}>“{t.note}”</div>}
-                        </div>
-                        <span className="num" style={{ fontWeight: 700, color: INK, whiteSpace: "nowrap" }}>{fmt(t.amount)}</span>
-                      </div>
-                    ))
-                  )}
-                  <div className="flex justify-between mt-2" style={{ fontSize: 14, fontWeight: 800, color: INK }}>
-                    <span>Total semana {w.index}</span><span className="num">{fmt(w.total)}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        <div style={{ fontWeight: 800, fontSize: 15, color: INK, margin: "16px 0 8px" }}>RESUMEN POR REGLA FINANCIERA</div>
-        {categories.map((cat) => {
-          const budget = budgetFor(cat);
-          const spent = spentInCategory(cat.id);
-          const diff = budget - spent;
-          const color = statusColor(spent, budget);
-          return (
-            <div key={cat.id} className="flex justify-between" style={{ fontSize: 14, padding: "4px 0" }}>
-              <span style={{ color: "#5A6472" }}>{cat.percent}% {cat.name}</span>
-              <span className="num" style={{ fontWeight: 700, color }}>{fmt(spent)} / {fmt(budget)}</span>
-            </div>
-          );
-        })}
-
-        <div className="mt-3 pt-3" style={{ borderTop: "2px solid #EEF0F3" }}>
-          <div className="flex justify-between" style={{ fontWeight: 800, fontSize: 16, color: INK }}><span>GASTOS TOTALES</span><span className="num">{fmt(totalSpentMonth)}</span></div>
-          <div className="flex justify-between" style={{ fontWeight: 800, fontSize: 16, color: INK }}><span>INGRESOS TOTALES</span><span className="num">{fmt(totalIncomeMonth)}</span></div>
-          <div className="flex justify-between mt-1" style={{ fontWeight: 800, fontSize: 17, color: statusColor(totalSpentMonth, totalIncomeMonth) }}><span>BALANCE</span><span className="num">{fmt(totalIncomeMonth - totalSpentMonth)}</span></div>
-        </div>
-      </div>
-
-      <button onClick={() => window.print()} className="no-print w-full rounded-xl mt-3 flex items-center justify-center gap-2 font-bold" style={{ padding: "13px", background: LIME, color: INK, border: "none" }}>
-        <Printer size={16} /> Exportar / Imprimir como PDF
-      </button>
-      <div className="no-print" style={{ fontSize: 13, color: c.onBgMuted, textAlign: "center", marginTop: 6 }}>
-        Se abrirá el diálogo de impresión de tu navegador — elige "Guardar como PDF".
-      </div>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Categories management                                                    */
-/* ---------------------------------------------------------------------- */
-
-function groupSubBreadcrumb(transactions, mainId, subId) {
-  const spent = transactions.filter((t) => t.type === "expense" && t.mainId === mainId && t.subId === subId);
-  const byConcept = {};
-  spent.forEach((t) => {
-    const key = t.conceptName.trim().toLowerCase();
-    if (!byConcept[key]) byConcept[key] = { name: t.conceptName, total: 0, count: 0 };
-    byConcept[key].total += t.amount;
-    byConcept[key].count += 1;
-  });
-  return Object.values(byConcept).sort((a, b) => b.total - a.total);
-}
-
-/* ---------------------------------------------------------------------- */
-/* Categorías — nested folder tree: Regla > Subcategoría > Gastos          */
-/* ---------------------------------------------------------------------- */
-
-function CategoriesScreen({ categories, transactions, spentInCategory, budgetFor, onAddSub, onEditSub, onDeleteSub }) {
-  const c = useColors();
-  const [openRules, setOpenRules] = useState({});
-  const [openSubs, setOpenSubs] = useState({});
-  const toggleRule = (id) => setOpenRules((p) => ({ ...p, [id]: !p[id] }));
-  const toggleSub = (id) => setOpenSubs((p) => ({ ...p, [id]: !p[id] }));
-
-  return (
-    <div>
-      <div style={{ color: c.onBg, fontWeight: 700, fontSize: 19, margin: "6px 0 12px" }}>Categorías</div>
-      <div className="flex flex-col gap-3">
-        {categories.map((cat) => (
-          <RuleFolder
-            key={cat.id}
-            cat={cat}
-            transactions={transactions}
-            spent={spentInCategory(cat.id)}
-            budget={budgetFor(cat)}
-            isOpen={!!openRules[cat.id]}
-            onToggle={() => toggleRule(cat.id)}
-            openSubs={openSubs}
-            toggleSub={toggleSub}
-            onAddSub={(name, icon) => onAddSub(cat.id, name, icon)}
-            onEditSub={(subId, name, icon) => onEditSub(cat.id, subId, name, icon)}
-            onDeleteSub={(subId) => onDeleteSub(cat.id, subId)}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function RuleFolder({ cat, transactions, spent, budget, isOpen, onToggle, openSubs, toggleSub, onAddSub, onEditSub, onDeleteSub }) {
-  const [newSubName, setNewSubName] = useState("");
-  const [newSubIcon, setNewSubIcon] = useState("wallet");
-  const [addingNew, setAddingNew] = useState(false);
-  const color = statusColor(spent, budget);
-
-  return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: CARD }}>
-      <button onClick={onToggle} className="w-full flex items-center justify-between p-4" style={{ background: "none", border: "none", textAlign: "left" }}>
-        <div className="flex items-center gap-2">
-          {isOpen ? <ChevronDown size={18} color={MUTED} /> : <ChevronRight size={18} color={MUTED} />}
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 16, color: INK }}>{cat.percent}% {cat.name}</div>
-            <div style={{ fontSize: 13, color: MUTED }}>{cat.subcategories.length} subcategoría{cat.subcategories.length !== 1 && "s"}</div>
-          </div>
-        </div>
-        <div className="num" style={{ fontWeight: 700, fontSize: 14, color }}>{fmt(spent)} / {fmt(budget)}</div>
-      </button>
-
-      {isOpen && (
-        <div style={{ padding: "0 12px 12px" }}>
-          <div className="flex flex-col gap-2">
-            {cat.subcategories.map((sub) => (
-              <SubFolder
-                key={sub.id}
-                cat={cat} sub={sub} transactions={transactions}
-                isOpen={!!openSubs[sub.id]}
-                onToggle={() => toggleSub(sub.id)}
-                onEditSub={onEditSub}
-                onDeleteSub={onDeleteSub}
-              />
-            ))}
-            {cat.subcategories.length === 0 && <EmptyNote text="Sin subcategorías todavía." />}
-          </div>
-
-          {addingNew ? (
-            <div className="rounded-xl mt-2 p-3" style={{ background: "#F7F8F9" }}>
-              <input value={newSubName} onChange={(e) => setNewSubName(e.target.value)} placeholder="Ej. CASA, SUPER, AUTO…" className="w-full rounded-lg mb-2" style={{ padding: "10px 12px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 15 }} />
-              <div className="flex gap-2 flex-wrap mb-2">
-                {ICONS.map(({ key, Icon, color: c2 }) => (
-                  <button key={key} onClick={() => setNewSubIcon(key)} className="rounded-full flex items-center justify-center" style={{ width: 32, height: 32, background: newSubIcon === key ? LIME : c2 + "22", border: "none" }}><Icon size={15} color={newSubIcon === key ? INK : c2} /></button>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => { setAddingNew(false); setNewSubName(""); }} className="flex-1 rounded-lg py-2" style={{ background: "#fff", border: "none", fontWeight: 600, fontSize: 14 }}>Cancelar</button>
-                <button onClick={() => { if (newSubName.trim()) { onAddSub(newSubName.trim(), newSubIcon); setNewSubName(""); setAddingNew(false); } }} className="flex-1 rounded-lg py-2" style={{ background: LIME, border: "none", fontWeight: 700, fontSize: 14 }}>Guardar</button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setAddingNew(true)} className="w-full rounded-xl mt-2 py-2" style={{ background: "#F7F8F9", border: "none", fontWeight: 700, fontSize: 14, color: "#5A6472" }}>+ Nueva subcategoría en {cat.name}</button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SubFolder({ cat, sub, transactions, isOpen, onToggle, onEditSub, onDeleteSub }) {
-  const Icon = iconFor(sub.icon);
-  const subColor = colorForIcon(sub.icon);
-  const breakdown = groupSubBreadcrumb(transactions, cat.id, sub.id);
-  const subTotal = breakdown.reduce((s, b) => s + b.total, 0);
-  const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState(sub.name);
-  const [editIcon, setEditIcon] = useState(sub.icon || "wallet");
-
-  return (
-    <div className="rounded-xl" style={{ background: "#F7F8F9" }}>
-      {editing ? (
-        <div className="p-3 flex flex-col gap-2">
-          <input value={editName} onChange={(e) => setEditName(e.target.value)} className="rounded-lg" style={{ padding: "9px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 15 }} />
-          <div className="flex gap-2 flex-wrap">
-            {ICONS.map(({ key, Icon: I, color }) => (
-              <button key={key} onClick={() => setEditIcon(key)} className="rounded-full flex items-center justify-center" style={{ width: 30, height: 30, background: editIcon === key ? LIME : color + "22", border: "none" }}><I size={14} color={editIcon === key ? INK : color} /></button>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => setEditing(false)} className="flex-1 rounded-lg py-2" style={{ background: "#fff", border: "none", fontWeight: 600, fontSize: 13 }}>Cancelar</button>
-            <button onClick={() => { if (editName.trim()) { onEditSub(sub.id, editName.trim(), editIcon); setEditing(false); } }} className="flex-1 rounded-lg py-2" style={{ background: LIME, border: "none", fontWeight: 700, fontSize: 13 }}>Guardar</button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-center justify-between p-3">
-          <button onClick={onToggle} className="flex items-center gap-2" style={{ background: "none", border: "none", textAlign: "left", flex: 1 }}>
-            {isOpen ? <ChevronDown size={15} color={MUTED} /> : <ChevronRight size={15} color={MUTED} />}
-            <div className="rounded-full flex items-center justify-center" style={{ width: 30, height: 30, background: subColor + "22" }}><Icon size={15} color={subColor} /></div>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: INK }}>{sub.name}</div>
-              {subTotal > 0 && <div className="num" style={{ fontSize: 12, color: MUTED }}>{fmt(subTotal)}</div>}
-            </div>
-          </button>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setEditing(true)} style={{ background: "none", border: "none" }}><Edit2 size={14} color={MUTED} /></button>
-            <button onClick={() => onDeleteSub(sub.id)} style={{ background: "none", border: "none" }}><Trash2 size={14} color={MUTED} /></button>
-          </div>
-        </div>
-      )}
-
-      {isOpen && !editing && (
-        <div style={{ padding: "0 12px 12px 40px" }}>
-          {breakdown.length === 0 ? (
-            <div style={{ fontSize: 13, color: MUTED }}>Sin gastos registrados todavía en {sub.name}.</div>
-          ) : (
-            <div className="flex flex-col gap-1">
-              {breakdown.map((b) => (
-                <div key={b.name} className="flex items-center justify-between" style={{ fontSize: 13, color: "#5A6472", padding: "5px 8px", background: "#fff", borderRadius: 8 }}>
-                  <span>{b.name} <span style={{ color: MUTED, fontSize: 12 }}>({b.count})</span></span>
-                  <span className="num" style={{ fontWeight: 700, color: INK }}>{fmt(b.total)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Add transaction sheet                                                    */
-/* ---------------------------------------------------------------------- */
-
-function AddTransactionSheet({ kind, categories, profile, defaultDate, editingTx, template, onClose, onSave, onCancelFutureRecurrences, onUpdateIncomeDefault, ensureSubFor }) {
-  const isEdit = !!editingTx;
-  const [type, setType] = useState(editingTx ? editingTx.type : kind); // expense | income
-  const [mainId, setMainId] = useState(editingTx ? editingTx.mainId || "" : template ? template.mainId : categories[0]?.id || "");
-  const [subId, setSubId] = useState(editingTx ? editingTx.subId || "" : template ? template.subId : "");
-  const [newSubName, setNewSubName] = useState("");
-  const [conceptName, setConceptName] = useState(editingTx ? editingTx.conceptName : template ? template.conceptName : "");
-  const [amount, setAmount] = useState(editingTx ? String(editingTx.amount) : template ? String(template.amount) : "");
-  const [date, setDate] = useState(editingTx ? editingTx.date : defaultDate);
-  const [time, setTime] = useState(editingTx ? (editingTx.time || new Date().toTimeString().slice(0, 5)) : () => new Date().toTimeString().slice(0, 5));
-  const [note, setNote] = useState(editingTx ? (editingTx.note || "") : "");
-  const [incomeKind, setIncomeKind] = useState(editingTx && editingTx.subName === "Ingreso extra" ? "extra" : "principal");
-  const [saveDefault, setSaveDefault] = useState(false);
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurrenceType, setRecurrenceType] = useState("mensual");
-  const [intervalDays, setIntervalDays] = useState("30");
-
-  const mainCat = categories.find((c) => c.id === mainId);
-  const subs = mainCat ? mainCat.subcategories : [];
-  const currentSub = subs.find((s) => s.id === subId);
-
-  function save() {
-    if (!amount || Number(amount) <= 0) return;
-    if (type === "expense") {
-      if (!mainId) return;
-      let finalSubId = subId, finalSubName = currentSub ? currentSub.name : "";
-      let newSub = null;
-      if (!subId && newSubName.trim()) {
-        finalSubName = newSubName.trim();
-        newSub = { name: finalSubName, icon: "wallet" };
-      }
-      const tx = {
-        type: "expense", amount: Number(amount), date, time,
-        mainId, subId: finalSubId || null, subName: finalSubName || "General",
-        conceptName: conceptName.trim() || finalSubName || "Gasto", note, icon: currentSub?.icon || "wallet",
-        isRecurring: !isEdit && isRecurring, recurrenceType: isRecurring ? recurrenceType : null,
-        intervalDays: isRecurring && recurrenceType === "personalizado" ? Number(intervalDays) || 30 : null,
-      };
-      onSave(tx, newSub, null);
-    } else {
-      if (saveDefault) onUpdateIncomeDefault(Number(amount), profile.incomePeriodicity);
-      const tx = { type: "income", amount: Number(amount), date, time, mainId: null, subId: null, subName: incomeKind === "principal" ? "Ingreso principal" : "Ingreso extra", conceptName: conceptName.trim() || (incomeKind === "principal" ? "Ingreso principal" : "Ingreso extra"), note, icon: "wallet" };
-      onSave(tx, null, null);
-    }
-  }
-
-  return (
-    <Sheet title={isEdit ? (type === "expense" ? "Editar gasto" : "Editar ingreso") : (type === "expense" ? "Registrar gasto" : "Registrar ingreso")} onClose={onClose} footer={<PrimaryBtn onClick={save} disabled={!amount || Number(amount) <= 0}>{isEdit ? "Guardar cambios" : "Guardar"}</PrimaryBtn>}>
-      <div className="flex gap-2 mb-4">
-        <button onClick={() => setType("expense")} className="flex-1 rounded-xl py-2" style={{ background: type === "expense" ? INK : "#F2F3F5", color: type === "expense" ? "#fff" : INK, border: "none", fontWeight: 700, fontSize: 15 }}>Gasto</button>
-        <button onClick={() => setType("income")} className="flex-1 rounded-xl py-2" style={{ background: type === "income" ? INK : "#F2F3F5", color: type === "income" ? "#fff" : INK, border: "none", fontWeight: 700, fontSize: 15 }}>Ingreso</button>
-      </div>
-
-      <div className="relative mb-3">
-        <span style={{ position: "absolute", left: 14, top: 13, color: MUTED }}>$</span>
-        <input value={formatAmountInput(amount)} onChange={(e) => setAmount(cleanAmountInput(e.target.value))} placeholder="0.00" inputMode="decimal" className="w-full rounded-xl" style={{ padding: "12px 14px 12px 28px", background: "#F4F5F7", border: "1px solid #E7E9EC", fontSize: 22, fontWeight: 700, color: INK }} />
-      </div>
-
-      {type === "expense" ? (
-        <>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#5A6472", marginBottom: 6 }}>Categoría principal</div>
-          <div className="flex gap-2 flex-wrap mb-3">
-            {categories.map((c) => <Pill key={c.id} active={mainId === c.id} onClick={() => { setMainId(c.id); setSubId(""); setNewSubName(""); }} style={{ background: mainId === c.id ? LIME : "#F2F3F5", color: mainId === c.id ? INK : INK }}>{c.name}</Pill>)}
-          </div>
-
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#5A6472", marginBottom: 6 }}>Subcategoría</div>
-          <div className="flex gap-2 flex-wrap mb-2">
-            {subs.map((s) => <Pill key={s.id} active={subId === s.id} onClick={() => setSubId((cur) => cur === s.id ? "" : s.id)} style={{ background: subId === s.id ? LIME : "#F2F3F5", color: INK }}>{s.name}</Pill>)}
-          </div>
-          {!subId && (
-            <input value={newSubName} onChange={(e) => setNewSubName(e.target.value)} placeholder="…o escribe una nueva (ej. Restaurantes)" className="w-full rounded-xl mb-3" style={{ padding: "10px 12px", background: "#F4F5F7", border: "1px solid #E7E9EC", fontSize: 15, color: INK }} />
-          )}
-
-          <TextField label="Concepto (ej. Renta, Comida con amigos)" value={conceptName} onChange={(e) => setConceptName(e.target.value)} placeholder="¿En qué gastaste?" />
-
-          {!isEdit && (
-            <div className="rounded-xl p-3 mb-3" style={{ background: "#F4F5F7" }}>
-              <label className="flex items-start gap-2" style={{ cursor: "pointer" }}>
-                <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} style={{ marginTop: 3 }} />
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: INK }}>Pago periódico</div>
-                  <div style={{ fontSize: 13, color: MUTED }}>Márcalo si es un gasto recurrente (renta, luz, suscripciones…) y lo registramos solo cada vez, sin que tengas que volver a meterlo cada mes.</div>
-                </div>
-              </label>
-              {isRecurring && (
-                <div className="mt-3 flex flex-col gap-2">
-                  <div className="flex gap-2 flex-wrap">
-                    {[["diaria","Diaria"],["semanal","Semanal"],["quincenal","Quincenal"],["mensual","Mensual"],["personalizado","Personalizado"]].map(([k, label]) => (
-                      <button key={k} type="button" onClick={() => setRecurrenceType(k)} className="rounded-lg py-2 px-3" style={{ background: recurrenceType === k ? LIME : "#fff", border: "1px solid #E7E9EC", fontWeight: 700, fontSize: 13 }}>{label}</button>
-                    ))}
-                  </div>
-                  {recurrenceType === "personalizado" ? (
-                    <div className="flex items-center gap-2">
-                      <span style={{ fontSize: 14, color: "#5A6472" }}>Se repite cada</span>
-                      <input value={intervalDays} onChange={(e) => setIntervalDays(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))} className="rounded-lg" style={{ width: 60, padding: "8px 10px", background: "#fff", border: "1px solid #E7E9EC", fontSize: 14, textAlign: "center" }} />
-                      <span style={{ fontSize: 14, color: "#5A6472" }}>días</span>
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 13, color: MUTED }}>
-                      {recurrenceType === "mensual" && `Se va a repetir el día ${date ? new Date(date + "T00:00:00").getDate() : "—"} de cada mes.`}
-                      {recurrenceType === "quincenal" && "Se repite cada 15 días a partir de la fecha que pongas abajo."}
-                      {recurrenceType === "semanal" && "Se repite cada semana, el mismo día que registres."}
-                      {recurrenceType === "diaria" && "Se repite todos los días."}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {isEdit && editingTx?.recurringGroupId && (
-            <div className="rounded-xl p-3 mb-3 flex items-center justify-between" style={{ background: "#FFF6E0" }}>
-              <div style={{ fontSize: 13, color: "#7A5A00", flex: 1, paddingRight: 8 }}>🔁 Esto es parte de un pago periódico.</div>
-              <button type="button" onClick={() => onCancelFutureRecurrences(editingTx.recurringGroupId, editingTx.date)} style={{ background: "#FFE1A8", border: "none", borderRadius: 999, padding: "6px 10px", fontSize: 12, fontWeight: 800, color: "#7A5A00" }}>Cancelar futuros</button>
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          <div className="flex gap-2 mb-3">
-            <Pill active={incomeKind === "principal"} onClick={() => setIncomeKind("principal")} style={{ background: incomeKind === "principal" ? LIME : "#F2F3F5", color: INK }}>Ingreso principal</Pill>
-            <Pill active={incomeKind === "extra"} onClick={() => setIncomeKind("extra")} style={{ background: incomeKind === "extra" ? LIME : "#F2F3F5", color: INK }}>Ingreso extra</Pill>
-          </div>
-          <TextField label="Concepto (ej. Quincena, Freelance)" value={conceptName} onChange={(e) => setConceptName(e.target.value)} placeholder="Describe el ingreso" />
-          {incomeKind === "principal" && (
-            <label className="flex items-center gap-2 mb-3" style={{ fontSize: 14, color: "#5A6472" }}>
-              <input type="checkbox" checked={saveDefault} onChange={(e) => setSaveDefault(e.target.checked)} />
-              Guardar como mi ingreso predeterminado
-            </label>
-          )}
-        </>
-      )}
-
-      <TextField label="Fecha" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-      <TextField label="Hora" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-      <TextField label="Nota (opcional)" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota" />
-    </Sheet>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Savings goals                                                            */
-/* ---------------------------------------------------------------------- */
-
-function GoalsScreen({ goals, onOpen, onAdd }) {
-  const c = useColors();
-  return (
-    <div>
-      <div className="flex items-center justify-between" style={{ margin: "6px 0 12px" }}>
-        <div style={{ color: c.onBg, fontWeight: 700, fontSize: 19 }}>Metas de ahorro</div>
-        <button onClick={onAdd} className="rounded-full flex items-center justify-center" style={{ width: 34, height: 34, background: LIME, border: "none" }}><Plus size={17} color={INK} /></button>
-      </div>
-      <div className="flex flex-col gap-3">
-        {goals.map((g) => {
-          const saved = g.contributions.reduce((s, c) => s + c.amount, 0);
-          const pct = Math.min(100, (saved / g.targetAmount) * 100);
-          const Icon = iconFor(g.icon);
-          return (
-            <button key={g.id} onClick={() => onOpen(g)} className="rounded-2xl p-4 text-left w-full" style={{ background: CARD, border: "none" }}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="rounded-full flex items-center justify-center" style={{ width: 30, height: 30, background: "#F2F3F5" }}><Icon size={15} /></div>
-                <div style={{ fontWeight: 700, fontSize: 16, color: INK }}>{g.name}</div>
-              </div>
-              <div className="rounded-full" style={{ height: 8, background: "#EFF1F3" }}>
-                <div className="rounded-full" style={{ height: 8, width: `${pct}%`, background: LIME }} />
-              </div>
-              <div className="flex justify-between mt-2" style={{ fontSize: 14, color: MUTED }}>
-                <span className="num">{fmt(saved)} / {fmt(g.targetAmount)}</span>
-                <span>{Math.round(pct)}%</span>
-              </div>
-            </button>
-          );
-        })}
-        {goals.length === 0 && <EmptyNote text="Sin metas todavía. Crea la primera." />}
-      </div>
-    </div>
-  );
-}
-
-function GoalDetail({ goal, onCreate, onContribute, onDelete }) {
-  const [name, setName] = useState("");
-  const [targetAmount, setTargetAmount] = useState("");
-  const [initialSaved, setInitialSaved] = useState("");
-  const [targetDate, setTargetDate] = useState("");
-  const [contribFreq, setContribFreq] = useState("mensual");
-  const [icon, setIcon] = useState("wallet");
-  const [contribAmount, setContribAmount] = useState("");
-  const [contribNote, setContribNote] = useState("");
-
-  if (!goal) {
-    return (
-      <div>
-        <TextField label="Nombre de la meta" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Vacaciones" />
-        <TextField label="Monto objetivo" value={formatAmountInput(targetAmount)} onChange={(e) => setTargetAmount(cleanAmountInput(e.target.value))} placeholder="0.00" />
-        <TextField label="¿Ya tienes algo ahorrado? (opcional)" value={formatAmountInput(initialSaved)} onChange={(e) => setInitialSaved(cleanAmountInput(e.target.value))} placeholder="0.00" />
-        <TextField label="Fecha objetivo (opcional)" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
-        <div style={{ fontSize: 14, fontWeight: 600, color: "#5A6472", marginBottom: 6 }}>¿Cada cuánto planeas aportar?</div>
-        <div className="grid grid-cols-4 gap-2 mb-4">
-          {["diaria", "semanal", "quincenal", "mensual"].map((f) => (
-            <button key={f} onClick={() => setContribFreq(f)} className="rounded-lg py-2 capitalize" style={{ background: contribFreq === f ? LIME : "#F2F3F5", border: "none", fontWeight: 600, fontSize: 12 }}>{f}</button>
-          ))}
-        </div>
-        <div style={{ fontSize: 14, fontWeight: 600, color: "#5A6472", marginBottom: 6 }}>Ícono</div>
-        <div className="flex gap-2 flex-wrap mb-4">
-          {ICONS.map(({ key, Icon, color }) => <button key={key} onClick={() => setIcon(key)} className="rounded-full flex items-center justify-center" style={{ width: 34, height: 34, background: icon === key ? LIME : color + "22", border: "none" }}><Icon size={16} color={icon === key ? INK : color} /></button>)}
-        </div>
-        <PrimaryBtn disabled={!name.trim() || !(Number(targetAmount) > 0)} onClick={() => onCreate({ name: name.trim(), targetAmount: Number(targetAmount), targetDate: targetDate || null, contribFreq, icon, initialSaved: Number(initialSaved) || 0 })}>Crear meta</PrimaryBtn>
-      </div>
-    );
-  }
-
-  const saved = goal.contributions.reduce((s, c) => s + c.amount, 0);
-  const remaining = Math.max(0, goal.targetAmount - saved);
-  const pct = Math.min(100, (saved / goal.targetAmount) * 100);
-
-  let pace = null;
-  if (goal.targetDate) {
-    const start = new Date(goal.createdAt), end = new Date(goal.targetDate), now = new Date();
-    const totalDays = Math.max(1, (end - start) / 86400000);
-    const elapsed = Math.min(totalDays, Math.max(0, (now - start) / 86400000));
-    const expectedPct = elapsed / totalDays;
-    const actualPct = saved / goal.targetAmount;
-    if (actualPct >= expectedPct + 0.03) pace = { label: "ADELANTADO", color: GREEN };
-    else if (actualPct <= expectedPct - 0.03) pace = { label: "RETRASADO", color: RED };
-    else pace = { label: "EN TIEMPO", color: YELLOW };
-  }
-
-  const daysRemaining = goal.targetDate ? Math.max(1, Math.ceil((new Date(goal.targetDate) - new Date()) / 86400000)) : null;
-  const per = daysRemaining ? periodicAmounts(remaining, daysRemaining) : null;
-
-  return (
-    <div>
-      <div className="rounded-full mb-2" style={{ height: 10, background: "#EFF1F3" }}>
-        <div className="rounded-full" style={{ height: 10, width: `${pct}%`, background: LIME }} />
-      </div>
-      <div className="flex justify-between mb-1"><span className="num" style={{ fontWeight: 700 }}>{fmt(saved)} / {fmt(goal.targetAmount)}</span><span style={{ fontWeight: 700 }}>{Math.round(pct)}%</span></div>
-      <div style={{ fontSize: 14, color: MUTED, marginBottom: 12 }}>Faltan {fmt(remaining)}</div>
-
-      {goal.targetDate && (
-        <div className="rounded-xl p-3 mb-3" style={{ background: "#F7F8F9" }}>
-          <div className="flex items-center justify-between mb-3">
-            <span style={{ fontSize: 14, fontWeight: 700, color: INK }}>Meta: {goal.targetDate}</span>
-            {pace && <span style={{ fontSize: 13, fontWeight: 800, color: pace.color }}>{pace.label}</span>}
-          </div>
-          {per && (
-            <>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#5A6472", marginBottom: 8 }}>Debes ahorrar:</div>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { key: "mensual", label: "Mensual", val: per.mensual },
-                  { key: "quincenal", label: "Quincenal", val: per.quincenal },
-                  { key: "semanal", label: "Semanal", val: per.semanal },
-                  { key: "diaria", label: "Diario", val: per.diario },
-                ].map((p) => (
-                  <div key={p.key} className="rounded-lg p-2" style={{ background: goal.contribFreq === p.key ? LIME : "#fff", border: goal.contribFreq === p.key ? "none" : "1px solid #EEF0F3" }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: goal.contribFreq === p.key ? "#3A3A00" : MUTED }}>{p.label}</div>
-                    <div className="num" style={{ fontSize: 15, fontWeight: 800, color: INK }}>{fmt(p.val)}</div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      <div style={{ fontWeight: 700, fontSize: 15, color: INK, marginBottom: 8 }}>Agregar aportación</div>
-      <div className="flex gap-2 mb-2">
-        <input value={formatAmountInput(contribAmount)} onChange={(e) => setContribAmount(cleanAmountInput(e.target.value))} placeholder="Monto" className="flex-1 rounded-lg" style={{ padding: "10px 12px", background: "#F4F5F7", border: "1px solid #E7E9EC", fontSize: 15 }} />
-        <button onClick={() => { if (Number(contribAmount) > 0) { onContribute(goal.id, contribAmount, contribNote); setContribAmount(""); setContribNote(""); } }} className="rounded-lg px-4" style={{ background: LIME, border: "none", fontWeight: 700, fontSize: 15 }}>Agregar</button>
-      </div>
-      <input value={contribNote} onChange={(e) => setContribNote(e.target.value)} placeholder="Nota (opcional)" className="w-full rounded-lg mb-4" style={{ padding: "10px 12px", background: "#F4F5F7", border: "1px solid #E7E9EC", fontSize: 15 }} />
-
-      <div style={{ fontWeight: 700, fontSize: 15, color: INK, marginBottom: 8 }}>Historial</div>
-      <div className="flex flex-col gap-1 mb-4">
-        {[...goal.contributions].reverse().map((c) => (
-          <div key={c.id} className="flex justify-between" style={{ fontSize: 14, color: "#5A6472" }}>
-            <span>{c.date} {c.note && `· ${c.note}`}</span><span className="num" style={{ fontWeight: 700 }}>{fmt(c.amount)}</span>
-          </div>
-        ))}
-        {goal.contributions.length === 0 && <div style={{ fontSize: 14, color: MUTED }}>Sin aportaciones aún.</div>}
-      </div>
-
-      <button onClick={() => onDelete(goal.id)} className="w-full rounded-xl py-2" style={{ background: "#FDEAEA", color: RED, border: "none", fontWeight: 700, fontSize: 15 }}>Eliminar meta</button>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Profile                                                                  */
-/* ---------------------------------------------------------------------- */
-
-/* ---------------------------------------------------------------------- */
-/* Modo de vista — daily/weekly/biweekly/monthly/custom budget snapshot     */
-/* ---------------------------------------------------------------------- */
-
-function ViewModeEditor({ profile, setProfile, onClose }) {
-  const [mode, setMode] = useState(profile.viewMode || "mensual");
-  const [days, setDays] = useState(profile.viewModeCustomDays || 7);
-
-  const OPTIONS = [
-    { key: "diaria", label: "Diario", desc: "Cuánto llevas gastado hoy vs. tu presupuesto de un día." },
-    { key: "semanal", label: "Semanal", desc: "Cuánto llevas gastado esta semana (lunes a domingo)." },
-    { key: "quincenal", label: "Quincenal", desc: "Cuánto llevas gastado en la quincena actual." },
-    { key: "mensual", label: "Mensual", desc: "El mes completo, como hasta ahora." },
-    { key: "personalizado", label: "Personalizado", desc: "Tú eliges cada cuántos días quieres revisarlo." },
-  ];
-
-  return (
-    <div>
-      <p style={{ fontSize: 15, color: "#5A6472", marginBottom: 14 }}>
-        Esto cambia cómo se ven tus tarjetas de reglas financieras en Inicio —
-        útil si tu ingreso es mensual pero prefieres controlar el gasto semana a semana.
-      </p>
-      <div className="flex flex-col gap-2 mb-4">
-        {OPTIONS.map((o) => (
-          <button key={o.key} onClick={() => setMode(o.key)} className="rounded-xl px-4 py-3 text-left" style={{ background: mode === o.key ? LIME : "#F4F5F7", border: "none" }}>
-            <div style={{ fontWeight: 700, fontSize: 15, color: INK }}>{o.label}</div>
-            <div style={{ fontSize: 13, color: mode === o.key ? "#3A3A00" : MUTED }}>{o.desc}</div>
-          </button>
-        ))}
-      </div>
-      {mode === "personalizado" && (
-        <TextField label="Revisar cada cuántos días" value={days} onChange={(e) => setDays(e.target.value.replace(/[^0-9]/g, ""))} placeholder="7" />
-      )}
-      <PrimaryBtn onClick={() => { setProfile((p) => ({ ...p, viewMode: mode, viewModeCustomDays: Number(days) || 7 })); onClose(); }}>
-        Guardar modo de vista
-      </PrimaryBtn>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Reglas financieras — switch preset or build a custom one                */
-/* ---------------------------------------------------------------------- */
-
-function RulesScreen({ categories, onApply }) {
-  const c = useColors();
-  const currentSummary = categories.map((cat) => `${cat.name} ${cat.percent}%`).join(" · ");
-  const [preset, setPreset] = useState("50/30/20");
-  const [customCats, setCustomCats] = useState([{ id: uid(), name: "", percent: "" }]);
-  const [showWarning, setShowWarning] = useState(false);
-  const customSum = customCats.reduce((s, cc) => s + (Number(cc.percent) || 0), 0);
-
-  function apply() {
-    let ruleCats;
-    if (preset === "personalizada") {
-      ruleCats = customCats.filter((cc) => cc.name.trim()).map((cc) => ({ name: cc.name.trim().toUpperCase(), percent: Number(cc.percent) || 0 }));
-    } else {
-      ruleCats = RULE_PRESETS[preset];
-    }
-    onApply(ruleCats, preset);
-    setShowWarning(false);
-  }
-
-  return (
-    <div>
-      <div style={{ color: c.onBg, fontWeight: 700, fontSize: 17, margin: "6px 0 4px" }}>Reglas financieras</div>
-      <div style={{ color: c.onBgMuted, fontSize: 14, marginBottom: 14 }}>Regla actual: {currentSummary || "sin definir"}</div>
-
-      <div className="flex flex-col gap-2 mb-4">
-        {Object.entries(RULE_PRESETS).map(([key, cats]) => (
-          <button key={key} onClick={() => setPreset(key)} className="rounded-xl px-4 py-3 text-left" style={{ background: preset === key ? LIME : CARD, border: "none" }}>
-            <div style={{ fontWeight: 700, color: INK, fontSize: 15 }}>Regla {key}</div>
-            <div style={{ fontSize: 13, color: preset === key ? "#3A3A00" : MUTED }}>{cats.map((cc) => `${cc.name} ${cc.percent}%`).join(" · ")}</div>
-          </button>
-        ))}
-        <button onClick={() => setPreset("personalizada")} className="rounded-xl px-4 py-3 text-left" style={{ background: preset === "personalizada" ? LIME : CARD, border: "none" }}>
-          <div style={{ fontWeight: 700, color: INK, fontSize: 15 }}>Personalizada</div>
-          <div style={{ fontSize: 13, color: preset === "personalizada" ? "#3A3A00" : MUTED }}>Define tus propias categorías y porcentajes</div>
-        </button>
-      </div>
-
-      {preset === "personalizada" && (
-        <div className="flex flex-col gap-2 mb-4">
-          {customCats.map((cc) => (
-            <div key={cc.id} className="flex gap-2">
-              <input value={cc.name} onChange={(e) => setCustomCats((prev) => prev.map((x) => x.id === cc.id ? { ...x, name: e.target.value } : x))} placeholder="Nombre" className="flex-1 rounded-lg" style={{ padding: "10px 12px", background: CARD, border: "1px solid #E7E9EC", fontSize: 15 }} />
-              <input value={cc.percent} onChange={(e) => setCustomCats((prev) => prev.map((x) => x.id === cc.id ? { ...x, percent: e.target.value.replace(/[^0-9]/g, "") } : x))} placeholder="%" className="rounded-lg" style={{ width: 70, padding: "10px 12px", background: CARD, border: "1px solid #E7E9EC", fontSize: 15 }} />
-            </div>
-          ))}
-          <button onClick={() => setCustomCats((prev) => [...prev, { id: uid(), name: "", percent: "" }])} style={{ color: c.onBg, background: "none", border: "none", fontSize: 15, fontWeight: 600, textAlign: "left" }}>+ Agregar categoría</button>
-          <div style={{ fontSize: 13, color: customSum === 100 ? GREEN : YELLOW }}>Suma actual: {customSum}% {customSum !== 100 && "(debe ser 100%)"}</div>
-        </div>
-      )}
-
-      {!showWarning ? (
-        <PrimaryBtn disabled={preset === "personalizada" && customSum !== 100} onClick={() => setShowWarning(true)}>Aplicar esta regla</PrimaryBtn>
-      ) : (
-        <div className="rounded-2xl p-4" style={{ background: "#FFF6E0" }}>
-          <div style={{ fontSize: 14, color: "#7A5A00", marginBottom: 10 }}>
-            Esto va a reorganizar tus categorías. Las subcategorías cuyo nombre coincida con la nueva regla se conservan; el resto quedará vacío para que las vuelvas a agregar. ¿Confirmas?
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => setShowWarning(false)} className="flex-1 rounded-xl py-2" style={{ background: "#F2F3F5", fontWeight: 600, fontSize: 14, border: "none" }}>Cancelar</button>
-            <button onClick={apply} className="flex-1 rounded-xl py-2" style={{ background: LIME, fontWeight: 700, fontSize: 14, border: "none" }}>Sí, aplicar</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ProfileScreen({ profile, setProfile, saveNote, theme, setTheme }) {
-  const c = useColors();
-  return (
-    <div>
-      <div style={{ color: c.onBg, fontWeight: 700, fontSize: 19, margin: "6px 0 12px" }}>Perfil y configuración</div>
-
-      <div style={{ fontSize: 14, fontWeight: 700, color: c.onBgMuted, margin: "0 0 8px" }}>APARIENCIA</div>
-      <div className="rounded-2xl p-2 flex gap-2 mb-4" style={{ background: CARD }}>
-        <button onClick={() => setTheme("dark")} className="flex-1 rounded-xl py-3 flex flex-col items-center gap-1" style={{ background: theme === "dark" ? INK : "#F4F5F7", border: "none" }}>
-          <div className="rounded-full" style={{ width: 18, height: 18, background: "linear-gradient(135deg,#2E3F58,#131B29)" }} />
-          <span style={{ fontSize: 14, fontWeight: 700, color: theme === "dark" ? "#fff" : INK }}>Oscuro</span>
-        </button>
-        <button onClick={() => setTheme("light")} className="flex-1 rounded-xl py-3 flex flex-col items-center gap-1" style={{ background: theme === "light" ? LIME : "#F4F5F7", border: "none" }}>
-          <div className="rounded-full" style={{ width: 18, height: 18, background: "linear-gradient(135deg,#EEF1F6,#DCE1E9)", border: "1px solid #D8DCE3" }} />
-          <span style={{ fontSize: 14, fontWeight: 700, color: INK }}>Claro</span>
-        </button>
-      </div>
-
-      <div style={{ fontSize: 14, fontWeight: 700, color: c.onBgMuted, margin: "0 0 8px" }}>DATOS</div>
-      <div className="rounded-2xl p-4" style={{ background: CARD }}>
-        <TextField label="Nombre" value={profile.name} onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))} />
-        <TextField label="Ingreso principal (monto)" value={formatAmountInput(String(profile.incomeAmount))} onChange={(e) => setProfile((p) => ({ ...p, incomeAmount: Number(cleanAmountInput(e.target.value)) || 0 }))} />
-        <div style={{ fontSize: 14, fontWeight: 600, color: "#5A6472", marginBottom: 6 }}>Periodicidad</div>
-        <div className="grid grid-cols-2 gap-2 mb-2">
-          {["diaria", "semanal", "quincenal", "mensual"].map((p) => (
-            <button key={p} onClick={() => setProfile((pr) => ({ ...pr, incomePeriodicity: p }))} className="rounded-lg py-2 capitalize" style={{ background: profile.incomePeriodicity === p ? LIME : "#F2F3F5", border: "none", fontWeight: 600, fontSize: 14 }}>{p}</button>
-          ))}
-        </div>
-      </div>
-      <div style={{ fontSize: 13, color: c.onBgMuted, textAlign: "center", marginTop: 12 }}>
-        {saveNote || "Tus datos se guardan automáticamente y solo tú puedes verlos: cada persona que use la app con su propia cuenta tiene su propio espacio, separado del de los demás."}
-      </div>
-    </div>
   );
 }
