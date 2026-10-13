@@ -180,7 +180,11 @@ function cleanAmountInput(str) {
   return str.replace(/,/g, "").replace(/[^0-9.]/g, "");
 }
 
-function todayISO() { return new Date().toISOString().slice(0, 10); }
+// Local date (NOT UTC) — toISOString() would jump to "tomorrow" after 6pm in México.
+function localISO(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function todayISO() { return localISO(new Date()); }
 
 function ym(dateStr) { return dateStr.slice(0, 7); }
 
@@ -375,8 +379,17 @@ export default function FinanzasMX() {
   const totalSpentMonth = monthExpenses.reduce((s, t) => s + t.amount, 0);
   const totalIncomeMonth = monthIncomes.reduce((s, t) => s + t.amount, 0);
 
+  // Real money available to split between the rules this month:
+  //  - "Ingreso principal" registered: if it adds up to MORE than the expected
+  //    salary (profile), use what really came in; otherwise keep the expected
+  //    salary so budgets don't shrink while waiting for the 2nd quincena.
+  //  - "Ingreso extra": always ADDED on top.
+  const principalIncomeMonth = monthIncomes.filter((t) => t.subName !== "Ingreso extra").reduce((s, t) => s + t.amount, 0);
+  const extraIncomeMonth = monthIncomes.filter((t) => t.subName === "Ingreso extra").reduce((s, t) => s + t.amount, 0);
+  const budgetBase = Math.max(monthlyIncome, principalIncomeMonth) + extraIncomeMonth;
+
   function spentInCategory(catId) { return monthExpenses.filter((t) => t.mainId === catId).reduce((s, t) => s + t.amount, 0); }
-  function budgetFor(cat) { return (monthlyIncome * cat.percent) / 100; }
+  function budgetFor(cat) { return (budgetBase * cat.percent) / 100; }
 
   function catById(id) { return categories.find((c) => c.id === id); }
 
@@ -477,10 +490,10 @@ export default function FinanzasMX() {
           {screen === "home" && (
             <HomeScreen
               profile={profile} categories={categories} monthLabel={monthLabel}
-              shiftMonth={shiftMonth} monthlyIncome={monthlyIncome}
+              shiftMonth={shiftMonth} monthlyIncome={budgetBase}
               totalSpentMonth={totalSpentMonth} totalIncomeMonth={totalIncomeMonth}
               spentInCategory={spentInCategory} budgetFor={budgetFor}
-              monthExpenses={monthExpenses} transactions={transactions}
+              monthExpenses={monthExpenses} monthIncomes={monthIncomes} transactions={transactions}
               deleteTransaction={(id) => setConfirmDel({ type: "tx", id })}
               onEditTransaction={(t) => { setEditingTx(t); setAddOpen(t.type); }}
               onAddExpense={() => setAddOpen("expense")} onAddIncome={() => setAddOpen("income")}
@@ -810,7 +823,7 @@ function Onboarding({ onDone }) {
 /* Home                                                                     */
 /* ---------------------------------------------------------------------- */
 
-function HomeScreen({ profile, categories, monthLabel, shiftMonth, monthlyIncome, totalSpentMonth, totalIncomeMonth, spentInCategory, budgetFor, monthExpenses, transactions, deleteTransaction, onEditTransaction, onAddExpense, onAddIncome }) {
+function HomeScreen({ profile, categories, monthLabel, shiftMonth, monthlyIncome, totalSpentMonth, totalIncomeMonth, spentInCategory, budgetFor, monthExpenses, monthIncomes = [], transactions, deleteTransaction, onEditTransaction, onAddExpense, onAddIncome }) {
   const c = useColors();
   const viewMode = profile.viewMode || "mensual";
   const customDays = profile.viewModeCustomDays || 7;
@@ -820,7 +833,9 @@ function HomeScreen({ profile, categories, monthLabel, shiftMonth, monthlyIncome
   const heroBudget = period ? monthlyIncome / period.divisor : monthlyIncome;
   const heroSpent = period ? period.items.reduce((s, t) => s + t.amount, 0) : totalSpentMonth;
   const heroIncomeLabel = period ? "Presupuesto" : "Ingresos";
-  const heroIncomeVal = period ? heroBudget : totalIncomeMonth;
+  // Show what really came in, or the expected salary if nothing was registered yet
+  const heroIncomeVal = period ? heroBudget : monthlyIncome;
+  const recent = [...monthExpenses, ...monthIncomes].sort((a, b) => (b.date + (b.time || "")).localeCompare(a.date + (a.time || "")));
   const remaining = heroBudget - heroSpent;
 
   return (
@@ -875,10 +890,10 @@ function HomeScreen({ profile, categories, monthLabel, shiftMonth, monthlyIncome
 
       <div style={{ color: c.onBg, fontWeight: 700, fontSize: 17, marginTop: 22, marginBottom: 10 }}>Movimientos recientes</div>
       <div className="flex flex-col gap-2">
-        {monthExpenses.slice(0, 8).map((t) => (
+        {recent.slice(0, 8).map((t) => (
           <TxRow key={t.id} t={t} onDelete={() => deleteTransaction(t.id)} onEdit={() => onEditTransaction(t)} />
         ))}
-        {monthExpenses.length === 0 && <EmptyNote text="Sin gastos registrados este mes todavía." />}
+        {recent.length === 0 && <EmptyNote text="Sin movimientos registrados este mes todavía." />}
       </div>
     </div>
   );
@@ -1131,7 +1146,7 @@ function getViewPeriod(transactions, viewMode, customDays) {
 function addDays(dateStr, n) {
   const d = new Date(dateStr + "T00:00:00");
   d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  return localISO(d);
 }
 function addMonthsClamped(dateStr, n) {
   const d = new Date(dateStr + "T00:00:00");
@@ -1139,7 +1154,7 @@ function addMonthsClamped(dateStr, n) {
   const target = new Date(d.getFullYear(), d.getMonth() + n, 1);
   const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
   target.setDate(Math.min(day, lastDay));
-  return target.toISOString().slice(0, 10);
+  return localISO(target);
 }
 // Builds the list of dates (including the original) for a recurring expense,
 // capped to a sensible horizon so we don't generate thousands of rows.
