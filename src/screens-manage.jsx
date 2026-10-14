@@ -410,7 +410,7 @@ export function ProfileScreen({ profile, setProfile, saveNote, appearance, setAp
       <SectionHeader title="Tus datos" />
       <Panel pad={18}>
         <Field label="Nombre" value={profile.name} onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))} />
-        <Field label="Ingreso esperado" inputMode="decimal" value={formatAmountInput(String(profile.incomeAmount))} onChange={(e) => setProfile((p) => ({ ...p, incomeAmount: Number(cleanAmountInput(e.target.value)) || 0 }))} hint="Lo que sueles recibir. Se usa para repartir tu presupuesto." />
+        <Field label="Ingreso esperado" inputMode="decimal" value={formatAmountInput(String(profile.incomeAmount))} onChange={(e) => setProfile((p) => ({ ...p, incomeAmount: Number(cleanAmountInput(e.target.value)) || 0 }))} hint="Lo que sueles recibir. Se usa como guía mientras no registres ingresos en el mes." />
         <div style={{ fontSize: T.small, fontWeight: 600, color: "var(--muted)", margin: "0 0 8px 4px" }}>¿Cada cuánto lo recibes?</div>
         <div className="flex gap-2 flex-wrap">
           {["diaria", "semanal", "quincenal", "mensual"].map((p) => <Chip key={p} active={profile.incomePeriodicity === p} onClick={() => setProfile((pr) => ({ ...pr, incomePeriodicity: p }))}>{p.charAt(0).toUpperCase() + p.slice(1)}</Chip>)}

@@ -15,7 +15,7 @@ import {
 /* ---------------------------------------------------------------------- */
 
 export function HomeScreen({
-  profile, categories, monthLabel, shiftMonth, budgetBase, expectedIncome, receivedIncome,
+  profile, categories, monthLabel, shiftMonth, budgetBase, expectedIncome, receivedIncome, usingExpected,
   totalSpentMonth, spentInCategory, budgetFor, monthExpenses, monthIncomes, transactions,
   onOpenTx, onAddExpense, onAddIncome, ruleInfo, onSeeAll,
 }) {
@@ -51,6 +51,10 @@ export function HomeScreen({
           Gastado {fmt0(heroSpent)} de {fmt0(heroBudget)}
         </div>
 
+        <div style={{ fontSize: T.cap, color: "var(--on-accent-muted)", marginTop: 4 }}>
+          {usingExpected ? "Calculado con tu ingreso esperado. Registra tus ingresos para usar lo que realmente recibes." : "Calculado con lo que has recibido este mes."}
+        </div>
+
         {!period && (
           <div className="flex" style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--on-accent-track)" }}>
             <div style={{ flex: 1 }}>
@@ -58,7 +62,7 @@ export function HomeScreen({
               <AnimatedNumber value={receivedIncome} format={fmt0} style={{ fontSize: T.body, fontWeight: 650 }} />
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: T.cap, color: "var(--on-accent-muted)" }}>Ingreso esperado</div>
+              <div style={{ fontSize: T.cap, color: "var(--on-accent-muted)" }}>Esperado al mes</div>
               <span className="num" style={{ fontSize: T.body, fontWeight: 650 }}>{fmt0(expectedIncome)}</span>
             </div>
           </div>

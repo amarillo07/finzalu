@@ -104,9 +104,10 @@ export default function FinanzasMX() {
 
   // Money split between the rules: expected salary (or what really came in,
   // if more) plus every extra income.
-  const principalIncomeMonth = monthIncomes.filter((t) => t.subName !== "Ingreso extra").reduce((s, t) => s + t.amount, 0);
-  const extraIncomeMonth = monthIncomes.filter((t) => t.subName === "Ingreso extra").reduce((s, t) => s + t.amount, 0);
-  const budgetBase = Math.max(expectedIncome, principalIncomeMonth) + extraIncomeMonth;
+  // Money to split this month: what you really received. Until you register
+  // an income, the expected income from your profile is used as a guide.
+  const usingExpected = totalIncomeMonth <= 0;
+  const budgetBase = usingExpected ? expectedIncome : totalIncomeMonth;
 
   const spentInCategory = (id) => monthExpenses.filter((t) => t.mainId === id).reduce((s, t) => s + t.amount, 0);
   const budgetFor = (cat) => (budgetBase * cat.percent) / 100;
@@ -266,7 +267,7 @@ export default function FinanzasMX() {
               {screen === "home" && (
                 <HomeScreen
                   profile={profile} categories={categories} monthLabel={monthLabel} shiftMonth={shiftMonth}
-                  budgetBase={budgetBase} expectedIncome={expectedIncome} receivedIncome={totalIncomeMonth}
+                  budgetBase={budgetBase} expectedIncome={expectedIncome} receivedIncome={totalIncomeMonth} usingExpected={usingExpected}
                   totalSpentMonth={totalSpentMonth} spentInCategory={spentInCategory} budgetFor={budgetFor}
                   monthExpenses={monthExpenses} monthIncomes={monthIncomes} transactions={transactions}
                   onOpenTx={openTx} onAddExpense={() => openAdd("expense")} onAddIncome={() => openAdd("income")}

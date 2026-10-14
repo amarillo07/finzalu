@@ -252,8 +252,8 @@ export default function AddTransactionSheet({
           </div>
           <div style={{ fontSize: T.small, color: "var(--muted)", margin: "10px 4px 18px", lineHeight: 1.5 }}>
             {incomeKind === "principal"
-              ? "Tu sueldo o pago fijo. Se suma a lo recibido del mes."
-              : "Dinero adicional (freelance, bonos, ventas). Aumenta el presupuesto de cada regla."}
+              ? "Tu sueldo o pago fijo. Se suma a lo que te queda este mes."
+              : "Dinero adicional (freelance, bonos, ventas). También se suma a lo que te queda."}
           </div>
           <Field label="Descripción (opcional)" value={conceptName} onChange={(ev) => setConceptName(ev.target.value)} placeholder={incomeKind === "principal" ? "Ej. Quincena" : "Ej. Proyecto freelance"} />
           {incomeKind === "principal" && (
