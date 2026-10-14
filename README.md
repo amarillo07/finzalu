@@ -1,4 +1,4 @@
-# Finanzas MX
+# Finzalu
 
 App de finanzas personales (100% local, funciona sin internet) hecha con React + Vite.
 Cada persona que la instale en su propio teléfono guarda su información únicamente

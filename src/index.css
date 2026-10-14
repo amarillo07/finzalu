@@ -4,8 +4,6 @@ html, body {
   margin: 0;
   background: var(--app-bg, #14121c);
   -webkit-tap-highlight-color: transparent;
-  overscroll-behavior-y: none;
-  overflow-x: hidden;
 }
 
 .app {
@@ -91,6 +89,8 @@ html, body {
 @keyframes expand { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 .expand { animation: expand .26s cubic-bezier(.2,.8,.2,1) both; }
 
+@keyframes pieIn { from { opacity: 0; transform: rotate(-70deg) scale(.6); } to { opacity: 1; transform: none; } }
+.pie-in { animation: pieIn .7s cubic-bezier(.2,.8,.2,1) both; transform-origin: center; }
 .bar-fill { transition: width .8s cubic-bezier(.2,.8,.2,1), height .8s cubic-bezier(.2,.8,.2,1), background-color .3s; }
 .chev { transition: transform .25s cubic-bezier(.3,.7,.4,1); }
 .chev.open { transform: rotate(90deg); }

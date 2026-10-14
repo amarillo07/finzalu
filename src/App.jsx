@@ -243,7 +243,7 @@ export default function FinanzasMX() {
     <ThemeContext.Provider value={theme}>
       <div className="app" style={rootStyle}>
         <div className="bg-layer" />
-        <div className="w-full flex justify-center" style={{ position: "relative", zIndex: 1 }}>
+        <div className="w-full flex justify-center" style={{ position: "relative", zIndex: 1, overflowX: "clip" }}>
           <div className="w-full flex flex-col" style={{ maxWidth: 480, minHeight: "100vh" }}>
 
             {/* Top bar */}
@@ -260,7 +260,7 @@ export default function FinanzasMX() {
               key={screen}
               ref={mainRef}
               className={"flex-1 " + (enterDir === "right" ? "screen-from-right" : enterDir === "left" ? "screen-from-left" : "screen-in")}
-              style={{ padding: "0 20px 130px", touchAction: "pan-y" }}
+              style={{ padding: "0 20px 130px" }}
               onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}
             >
               {screen === "home" && (

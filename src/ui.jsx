@@ -362,50 +362,69 @@ export function ColorPicker({ value, onChange }) {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Donut ("gráfica de rueda") — tap a slice or a legend row to focus it    */
+/* Pie chart ("gráfica de pastel") — tap a slice or a legend row          */
 /* ---------------------------------------------------------------------- */
+
+function slicePath(cx, cy, r, a0, a1) {
+  const p = (a) => [cx + r * Math.sin(a), cy - r * Math.cos(a)];
+  const [x0, y0] = p(a0), [x1, y1] = p(a1);
+  const large = a1 - a0 > Math.PI ? 1 : 0;
+  return `M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} Z`;
+}
 
 export function Donut({ segments, centerLabel = "Total", format = fmt }) {
   const [active, setActive] = useState(null);
-  const [drawn, setDrawn] = useState(false);
-  useEffect(() => { const id = requestAnimationFrame(() => setDrawn(true)); return () => cancelAnimationFrame(id); }, []);
   const total = segments.reduce((s, x) => s + x.value, 0);
-  const size = 200, r = 74, sw = 24, C = 2 * Math.PI * r, gap = segments.length > 1 ? 3 : 0;
-  let offset = 0;
+  const size = 220, cx = size / 2, cy = size / 2, r = 96;
   const focus = segments.find((s) => s.key === active);
+  let angle = 0;
+  const slices = segments.map((s) => {
+    const sweep = total > 0 ? (s.value / total) * Math.PI * 2 : 0;
+    const a0 = angle, a1 = angle + sweep;
+    angle = a1;
+    return { ...s, a0, a1, mid: (a0 + a1) / 2, sweep };
+  });
 
   return (
     <div>
-      <div className="flex justify-center" style={{ position: "relative" }}>
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Gráfica de rueda del gasto">
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--track)" strokeWidth={sw} />
-          {segments.map((s) => {
-            const len = total > 0 ? (s.value / total) * C : 0;
-            const dash = Math.max(0, len - gap);
-            const el = (
-              <circle
+      <div className="flex justify-center">
+        <svg className="pie-in" width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Gráfica de pastel del gasto" style={{ overflow: "visible" }}>
+          {slices.map((s) => {
+            const on = active === s.key;
+            const push = on ? 9 : 0; // the tapped slice pops out
+            const dx = Math.sin(s.mid) * push, dy = -Math.cos(s.mid) * push;
+            const shape = s.sweep >= Math.PI * 2 - 0.0001
+              ? <circle cx={cx} cy={cy} r={r} />
+              : <path d={slicePath(cx, cy, r, s.a0, s.a1)} />;
+            return (
+              <g
                 key={s.key}
-                cx={size / 2} cy={size / 2} r={r} fill="none"
-                stroke={s.color}
-                strokeWidth={active === s.key ? sw + 8 : sw}
-                strokeDasharray={`${drawn ? dash : 0} ${C}`}
-                strokeDashoffset={-offset}
-                transform={`rotate(-90 ${size / 2} ${size / 2})`}
-                style={{ transition: "stroke-dasharray .9s cubic-bezier(.2,.8,.2,1), stroke-width .25s, opacity .25s", opacity: active && active !== s.key ? 0.35 : 1, cursor: "pointer" }}
-                onClick={() => setActive(active === s.key ? null : s.key)}
-              />
+                onClick={() => setActive(on ? null : s.key)}
+                style={{ cursor: "pointer", transform: `translate(${dx}px, ${dy}px)`, transition: "transform .3s cubic-bezier(.2,.9,.3,1.3), opacity .25s", opacity: active && !on ? 0.4 : 1 }}
+                fill={s.color} stroke="var(--glass-strong)" strokeWidth={2.5} strokeLinejoin="round"
+              >
+                {shape}
+              </g>
             );
-            offset += len;
-            return el;
+          })}
+          {slices.map((s) => {
+            const pct = total > 0 ? Math.round((s.value / total) * 100) : 0;
+            if (pct < 8) return null; // too thin for a label; it's in the legend
+            const lr = r * 0.62;
+            const on = active === s.key;
+            const push = on ? 9 : 0;
+            const x = cx + Math.sin(s.mid) * (lr + push), y = cy - Math.cos(s.mid) * (lr + push);
+            return (
+              <text key={s.key + "t"} x={x} y={y} textAnchor="middle" dominantBaseline="central" className="num" style={{ fontSize: 14, fontWeight: 700, fill: readableOn(toHex(s.color)), pointerEvents: "none", transition: "x .3s, y .3s" }}>{pct}%</text>
+            );
           })}
         </svg>
-        <div className="flex flex-col items-center justify-center" style={{ position: "absolute", inset: 0, pointerEvents: "none", textAlign: "center" }}>
-          <div style={{ fontSize: T.cap, color: "var(--muted)", fontWeight: 600, maxWidth: 110 }} className="truncate">{focus ? focus.label : centerLabel}</div>
-          <div className="num" style={{ fontSize: T.title, fontWeight: 700 }}>{format(focus ? focus.value : total)}</div>
-          {focus && total > 0 && <div className="num" style={{ fontSize: T.cap, color: "var(--muted)" }}>{Math.round((focus.value / total) * 100)}% del total</div>}
-        </div>
       </div>
-      <div style={{ marginTop: 10 }}>
+      <div className="flex items-baseline justify-center gap-2" style={{ marginTop: 12, minHeight: 28 }}>
+        <span style={{ fontSize: T.small, color: "var(--muted)", fontWeight: 600 }}>{focus ? focus.label : centerLabel}</span>
+        <span className="num" style={{ fontSize: T.title, fontWeight: 700 }}>{format(focus ? focus.value : total)}</span>
+      </div>
+      <div style={{ marginTop: 6 }}>
         {segments.map((s) => (
           <button key={s.key} onClick={() => setActive(active === s.key ? null : s.key)} className="hairline w-full flex items-center gap-3 text-left" style={{ background: active === s.key ? "var(--chip)" : "none", border: "none", padding: "10px 8px", borderRadius: 12 }}>
             <span style={{ width: 12, height: 12, borderRadius: 4, background: s.color, flexShrink: 0 }} />
@@ -418,3 +437,6 @@ export function Donut({ segments, centerLabel = "Total", format = fmt }) {
     </div>
   );
 }
+
+// Labels sit on the slice color; "var(--muted)" slices fall back to gray
+function toHex(c) { return c && c.startsWith("#") ? c : "#8a8794"; }

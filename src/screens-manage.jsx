@@ -464,6 +464,10 @@ export function MenuList({ onNavigate, onViewMode }) {
           ))}
         </div>
       ))}
+      <div className="flex items-center justify-center gap-2" style={{ marginTop: 6, color: "var(--muted)", fontSize: T.small }}>
+        <img src={import.meta.env.BASE_URL + "icons/icon.svg"} alt="" width={22} height={22} style={{ borderRadius: 7 }} />
+        <span style={{ fontWeight: 650 }}>Finzalu</span>
+      </div>
     </div>
   );
 }
@@ -499,6 +503,10 @@ export function Onboarding({ onDone, appearance, setAppearance }) {
   return (
     <div className="w-full flex justify-center" style={{ position: "relative", zIndex: 1, minHeight: "100vh" }}>
       <div className="w-full flex flex-col" style={{ maxWidth: 480, padding: "48px 20px 32px" }}>
+        <div className="flex items-center gap-3" style={{ marginBottom: 28 }}>
+          <img src={import.meta.env.BASE_URL + "icons/icon.svg"} alt="" width={44} height={44} style={{ borderRadius: 13, boxShadow: "0 10px 24px -12px var(--shadow)" }} />
+          <span style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.03em" }}>Finzalu</span>
+        </div>
         <div className="flex gap-1" style={{ marginBottom: 28 }}>
           {Array.from({ length: steps }, (_, i) => <span key={i} className="bar-fill" style={{ height: 5, flex: 1, borderRadius: 3, background: i <= step ? "var(--accent-line)" : "var(--track)" }} />)}
         </div>

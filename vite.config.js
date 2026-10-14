@@ -13,11 +13,11 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["icons/icon-192.png", "icons/icon-512.png"],
+      includeAssets: ["icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "favicon.svg"],
       manifest: {
-        name: "Finanzas MX",
-        short_name: "Finanzas MX",
-        description: "Control de gastos e ingresos personales, reglas financieras y metas de ahorro.",
+        name: "Finzalu",
+        short_name: "Finzalu",
+        description: "Finzalu: reparte tu dinero con reglas, controla tus gastos y cumple tus metas de ahorro.",
         theme_color: "#131B29",
         background_color: "#131B29",
         display: "standalone",
