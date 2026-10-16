@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Plus, ChevronRight, Trash2, Repeat } from "lucide-react";
-import { Sheet, PrimaryBtn, GhostBtn, Field, Chip, CatIcon, IconPicker, T } from "./ui";
+import { Sheet, PrimaryBtn, GhostBtn, Field, Chip, CatIcon, IconPicker, AmountInput, T } from "./ui";
 import { fmt0, nice, uid, todayISO, addDays, formatAmountInput, cleanAmountInput, generateRecurringDates, fmtDayShort } from "./utils";
 
 const RECURRENCE = [["diaria", "Diaria"], ["semanal", "Semanal"], ["quincenal", "Quincenal"], ["mensual", "Mensual"], ["personalizado", "Cada X días"]];
@@ -96,15 +96,29 @@ export default function AddTransactionSheet({
     setItemId(id); setCreatingItem(false); setNewItemName("");
   }
 
+  // A category/subcategory you typed but didn't confirm with "Crear" is
+  // created anyway when you save — so the expense never ends up unassigned.
+  const pendingCat = type === "expense" && creatingCat && newCatName.trim() && mainId ? newCatName.trim() : "";
+  const pendingItem = type === "expense" && creatingItem && newItemName.trim() && (subId || pendingCat) ? newItemName.trim() : "";
+
   function save() {
     if (!valid) return;
     if (type === "expense") {
-      const fallback = item?.name || cat?.name || "Gasto";
+      let finalCat = cat, finalItem = item;
+      if (pendingCat) {
+        finalCat = { id: uid("sub"), name: pendingCat, icon: newCatIcon };
+        onCreateCategory(mainId, finalCat);
+      }
+      if (pendingItem && finalCat) {
+        finalItem = { id: uid("item"), name: pendingItem };
+        onCreateItem(mainId, finalCat.id, finalItem);
+      } else if (pendingCat) finalItem = null;
+      const fallback = finalItem?.name || finalCat?.name || "Gasto";
       onSave({
         type: "expense", amount: Number(amount), date, time, note,
-        mainId, subId: subId || null, subName: cat ? cat.name : "Sin categoría",
-        itemId: itemId || null, itemName: item ? item.name : null,
-        conceptName: conceptName.trim() || fallback, icon: cat?.icon || "wallet",
+        mainId, subId: finalCat ? finalCat.id : null, subName: finalCat ? finalCat.name : "Sin categoría",
+        itemId: finalItem ? finalItem.id : null, itemName: finalItem ? finalItem.name : null,
+        conceptName: conceptName.trim() || fallback, icon: finalCat?.icon || "wallet",
         isRecurring: !isEdit && isRecurring, recurrenceType: !isEdit && isRecurring ? recurrenceType : null,
         intervalDays: !isEdit && isRecurring && recurrenceType === "personalizado" ? Number(intervalDays) || 30 : null,
         dayOfMonth: !isEdit && isRecurring && recurrenceType === "mensual" ? dayOfMonth : null,
@@ -128,7 +142,9 @@ export default function AddTransactionSheet({
       onClose={onClose}
       footer={
         <div className="flex flex-col gap-2">
-          <PrimaryBtn onClick={save} disabled={!valid}>{isEdit ? "Guardar cambios" : type === "expense" ? "Guardar gasto" : "Guardar ingreso"}</PrimaryBtn>
+          <PrimaryBtn onClick={save} disabled={!valid}>
+            {isEdit ? "Guardar cambios" : type === "expense" ? (pendingCat ? `Crear "${pendingCat}" y guardar` : pendingItem ? `Crear "${pendingItem}" y guardar` : "Guardar gasto") : "Guardar ingreso"}
+          </PrimaryBtn>
           {isEdit && (
             <button onClick={() => onDelete(e.id)} className="press flex items-center justify-center gap-2" style={{ background: "none", border: "none", color: "var(--bad)", fontWeight: 600, fontSize: T.small, padding: 8 }}>
               <Trash2 size={15} /> Eliminar {type === "expense" ? "gasto" : "ingreso"}
@@ -147,11 +163,10 @@ export default function AddTransactionSheet({
       {/* Amount */}
       <div className="flex items-baseline justify-center gap-1" style={{ marginBottom: 6 }}>
         <span style={{ fontSize: 28, fontWeight: 500, color: "var(--muted)" }}>$</span>
-        <input
-          value={formatAmountInput(amount)}
-          onChange={(ev) => setAmount(cleanAmountInput(ev.target.value))}
+        <AmountInput
+          value={amount}
+          onValue={setAmount}
           placeholder="0"
-          inputMode="decimal"
           aria-label="Monto"
           autoFocus={!isEdit}
           className="num"
@@ -161,7 +176,7 @@ export default function AddTransactionSheet({
 
       {type === "expense" ? (
         <>
-          <PathPreview rule={rule} ruleColor={rule ? ruleColor(rule.id) : null} cat={cat} item={item} />
+          <PathPreview rule={rule} ruleColor={rule ? ruleColor(rule.id) : null} cat={pendingCat ? { name: pendingCat } : cat} item={pendingItem ? { name: pendingItem } : pendingCat ? null : item} />
 
           <Label hint="Tu regla financiera decide de qué presupuesto se descuenta.">¿De qué regla sale?</Label>
           <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(categories.length, 3)}, 1fr)` }}>
@@ -204,14 +219,18 @@ export default function AddTransactionSheet({
               </div>
 
               {creatingCat && (
-                <div className="expand" style={{ marginTop: 10, padding: 14, borderRadius: 20, background: "var(--field)", border: "1px solid var(--field-border)" }}>
-                  <Field label={`Nueva categoría en ${nice(rule.name)}`} value={newCatName} onChange={(ev) => setNewCatName(ev.target.value)} placeholder="Ej. Casa" autoFocus />
-                  <div style={{ fontSize: T.small, fontWeight: 600, color: "var(--muted)", margin: "0 0 8px 4px" }}>Ícono</div>
-                  <IconPicker value={newCatIcon} onChange={setNewCatIcon} />
-                  <div className="flex gap-2" style={{ marginTop: 12 }}>
-                    <GhostBtn onClick={() => { setCreatingCat(false); setNewCatName(""); }}>Cancelar</GhostBtn>
-                    <PrimaryBtn onClick={createCat} disabled={!newCatName.trim()}>Crear</PrimaryBtn>
+                <div className="expand" style={{ marginTop: 10, padding: 14, borderRadius: 20, background: "var(--accent-soft)", border: "1.5px solid var(--accent-line)" }}>
+                  <div className="flex items-center justify-between" style={{ margin: "0 4px 8px" }}>
+                    <span style={{ fontSize: T.small, fontWeight: 650 }}>Nueva categoría en {nice(rule.name)}</span>
+                    <button onClick={() => { setCreatingCat(false); setNewCatName(""); }} className="press" style={{ background: "none", border: "none", color: "var(--muted)", fontWeight: 600, fontSize: T.small, padding: 4 }}>Cancelar</button>
                   </div>
+                  <div className="flex gap-2">
+                    <input className="field" value={newCatName} onChange={(ev) => setNewCatName(ev.target.value)} onKeyDown={(ev) => ev.key === "Enter" && createCat()} placeholder="Ej. Casa" autoFocus enterKeyHint="done" aria-label="Nombre de la categoría" />
+                    <button onClick={createCat} disabled={!newCatName.trim()} className="press flex items-center gap-1" style={{ padding: "0 16px", flexShrink: 0, borderRadius: 16, border: "none", background: newCatName.trim() ? "var(--accent)" : "var(--chip)", color: newCatName.trim() ? "var(--on-accent)" : "var(--muted)", fontWeight: 700, fontSize: T.small, boxShadow: newCatName.trim() ? "0 8px 18px -10px var(--accent)" : "none" }}><Plus size={16} strokeWidth={2.6} /> Crear</button>
+                  </div>
+                  {newCatName.trim() && <div style={{ fontSize: T.cap, color: "var(--muted)", margin: "8px 4px 0" }}>Si no tocas Crear, se crea sola al guardar el gasto.</div>}
+                  <div style={{ fontSize: T.small, fontWeight: 600, color: "var(--muted)", margin: "12px 4px 8px" }}>Ícono</div>
+                  <IconPicker value={newCatIcon} onChange={setNewCatIcon} />
                 </div>
               )}
 
@@ -230,9 +249,15 @@ export default function AddTransactionSheet({
                     )}
                   </div>
                   {creatingItem && (
-                    <div className="expand flex gap-2" style={{ marginTop: 10 }}>
-                      <input className="field" value={newItemName} onChange={(ev) => setNewItemName(ev.target.value)} onKeyDown={(ev) => ev.key === "Enter" && createItem()} placeholder="Ej. Luz" autoFocus />
-                      <button onClick={createItem} disabled={!newItemName.trim()} className="press" style={{ padding: "0 18px", borderRadius: 16, border: "none", background: newItemName.trim() ? "var(--accent)" : "var(--chip)", color: newItemName.trim() ? "var(--on-accent)" : "var(--muted)", fontWeight: 650 }}>Agregar</button>
+                    <div className="expand" style={{ marginTop: 10 }}>
+                      <div className="flex gap-2">
+                        <input className="field" value={newItemName} onChange={(ev) => setNewItemName(ev.target.value)} onKeyDown={(ev) => ev.key === "Enter" && createItem()} placeholder="Ej. Luz" autoFocus enterKeyHint="done" aria-label="Nombre de la subcategoría" />
+                        <button onClick={createItem} disabled={!newItemName.trim()} className="press flex items-center gap-1" style={{ padding: "0 16px", flexShrink: 0, borderRadius: 16, border: "none", background: newItemName.trim() ? "var(--accent)" : "var(--chip)", color: newItemName.trim() ? "var(--on-accent)" : "var(--muted)", fontWeight: 700, fontSize: T.small, boxShadow: newItemName.trim() ? "0 8px 18px -10px var(--accent)" : "none" }}><Plus size={16} strokeWidth={2.6} /> Crear</button>
+                      </div>
+                      <div className="flex items-center justify-between" style={{ margin: "6px 4px 0" }}>
+                        <span style={{ fontSize: T.cap, color: "var(--muted)" }}>{newItemName.trim() ? "Si no tocas Crear, se crea sola al guardar." : ""}</span>
+                        <button onClick={() => { setCreatingItem(false); setNewItemName(""); }} className="press" style={{ background: "none", border: "none", color: "var(--muted)", fontWeight: 600, fontSize: T.cap, padding: 4 }}>Cancelar</button>
+                      </div>
                     </div>
                   )}
                 </div>

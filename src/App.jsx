@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Home, PieChart as PieIcon, Calendar as CalendarIcon, Plus, Menu, Search, List as ListIcon } from "lucide-react";
 import { storage } from "./storage";
-import { buildTheme, DEFAULT_ACCENT } from "./theme";
+import { buildTheme, DEFAULT_ACCENT, mix } from "./theme";
 import { ThemeContext, Sheet, Confirm, Toast, TxRow, EmptyNote, IconBtn, T } from "./ui";
 import {
   STORAGE_KEY, MONTHS, uid, nice, monthlyEquivalent, todayISO, ym, generateRecurringDates, fmtDayLong,
@@ -82,6 +82,20 @@ export default function FinanzasMX() {
   }, [profile, categories, transactions, goals, appearance, loaded]);
 
   const theme = useMemo(() => buildTheme(appearance.accent, appearance.mode), [appearance]);
+
+  // Hide the launch screen once the saved data is loaded
+  useEffect(() => { if (loaded && window.__hideSplash) window.__hideSplash(); }, [loaded]);
+
+  // Remember the colors so the next launch screen already uses them
+  useEffect(() => {
+    if (!loaded) return;
+    try {
+      localStorage.setItem("finzalu_splash", JSON.stringify({
+        bg: theme.bg, a: theme.accent, a2: mix(theme.accent, appearance.mode === "dark" ? "#ffffff" : theme.bg, 0.45),
+        text: appearance.mode === "dark" ? "#f4f3f8" : "#17151f",
+      }));
+    } catch (e) { /* storage unavailable */ }
+  }, [theme, loaded, appearance.mode]);
 
   // Keep the browser chrome (status bar, overscroll) in the same color
   useEffect(() => {

@@ -125,6 +125,9 @@ export function HomeScreen({
 
 export function StatsScreen({ categories, ruleFilter, setRuleFilter, monthLabel, shiftMonth, monthExpenses, transactions, monthCursor, spentInCategory, budgetFor, ruleInfo }) {
   const [openCat, setOpenCat] = useState(null);
+  const [pieLevel, setPieLevel] = useState("rule");
+  const [pieCat, setPieCat] = useState(null);
+  const pieRef = React.useRef(null);
   const theme = useTheme();
   const seriesColors = theme.series;
   const rulesShown = ruleFilter === "todas" ? categories : categories.filter((c) => c.id === ruleFilter);
@@ -147,23 +150,39 @@ export function StatsScreen({ categories, ruleFilter, setRuleFilter, monthLabel,
   });
   const catRows = Object.values(byCat).sort((a, b) => b.total - a.total);
 
-  // Donut: by rule when showing all; by category inside one rule.
-  // Color follows the entity (its position in the rule), never its rank.
-  let donutSegments;
-  if (ruleFilter === "todas") {
+  // Pie: by rule, by category, or by the subcategories of one category.
+  // Color follows the entity: categories/subcategories are shades of their
+  // rule's color, ordered as they appear in the rule (never by rank).
+  // Alternate lighter / darker so neighbouring slices never look alike
+  const SHADES = [["#ffffff", 0], ["#ffffff", 0.5], ["#000000", 0.38], ["#ffffff", 0.75], ["#000000", 0.6], ["#ffffff", 0.25]];
+  const ruleBase = (ruleId) => { const i = categories.findIndex((c) => c.id === ruleId); return i < 0 ? "#8a8794" : seriesColors[i % seriesColors.length]; };
+  const shadeOf = (ruleId, idx) => { const [to, t] = SHADES[idx % SHADES.length]; return mix(ruleBase(ruleId), to, t); };
+  const catIndex = (g) => { const r = categories.find((c) => c.id === g.mainId); const i = r ? r.subcategories.findIndex((s) => s.id === g.key.split("|")[1]) : -1; return i < 0 ? 99 : i; };
+  const level = ruleFilter !== "todas" && pieLevel === "rule" ? "cat" : pieLevel;
+  const subCat = catRows.find((g) => g.key === pieCat) || catRows[0];
+
+  let donutSegments = [], pieHint = "";
+  const capped = (rows, max) => {
+    const top = rows.slice(0, max), rest = rows.slice(max);
+    if (rest.length) top.push({ key: "otros", label: `Otras (${rest.length})`, value: rest.reduce((s, r) => s + r.value, 0), color: "var(--muted)" });
+    return top;
+  };
+  if (level === "rule") {
     donutSegments = categories.map((c) => ({ key: c.id, label: nice(c.name), value: spentInCategory(c.id), color: ruleInfo(c.id).color })).filter((s) => s.value > 0);
-  } else {
-    const rule = categories.find((c) => c.id === ruleFilter);
-    const order = (subId) => { const i = rule ? rule.subcategories.findIndex((s) => s.id === subId) : -1; return i < 0 ? 99 : i; };
-    const rows = catRows.map((g) => ({ ...g, idx: order(g.key.split("|")[1]) }));
-    const top = rows.slice(0, 5), rest = rows.slice(5);
-    // Shades of the rule's own color: darkest = first category of the rule
-    const base = seriesColors[categories.findIndex((c) => c.id === ruleFilter) % seriesColors.length];
-    const steps = [0, 0.28, 0.48, 0.64, 0.76];
-    const shade = (idx) => mix(base, theme.surface, steps[Math.min(idx, steps.length - 1)]);
-    const ranked = [...top].sort((a, b) => a.idx - b.idx).map((g) => g.key);
-    donutSegments = top.map((g) => ({ key: g.key, label: g.name, value: g.total, color: shade(ranked.indexOf(g.key)) }));
-    if (rest.length) donutSegments.push({ key: "otros", label: `Otras (${rest.length})`, value: rest.reduce((s, g) => s + g.total, 0), color: "var(--muted)" });
+    pieHint = "Por regla.";
+  } else if (level === "cat") {
+    donutSegments = capped(catRows.map((g) => ({ key: g.key, label: g.name, value: g.total, color: shadeOf(g.mainId, catIndex(g)) })), 7);
+    pieHint = ruleFilter === "todas" ? "Por categoría, en tonos del color de su regla." : `Por categoría de ${nice(ruleInfo(ruleFilter).name).toLowerCase()}.`;
+  } else if (subCat) {
+    const r = categories.find((c) => c.id === subCat.mainId);
+    const def = r?.subcategories.find((s) => s.id === subCat.key.split("|")[1]);
+    const order = (name) => { const i = (def?.items || []).findIndex((it) => it.name === name); return i < 0 ? 98 : i; };
+    const rows = Object.entries(subCat.items)
+      .map(([name, v]) => ({ key: name, label: name, value: v, idx: order(name) }))
+      .sort((a, b) => b.value - a.value)
+      .map((x) => ({ ...x, color: x.label === "Sin subcategoría" ? "var(--muted)" : shadeOf(subCat.mainId, x.idx) }));
+    donutSegments = capped(rows, 7);
+    pieHint = `Subcategorías de ${subCat.name}.`;
   }
   const maxCat = catRows[0]?.total || 1;
 
@@ -220,9 +239,19 @@ export function StatsScreen({ categories, ruleFilter, setRuleFilter, monthLabel,
 
       {expenses.length > 0 && (
         <>
-          <SectionHeader title="¿Cómo se reparte tu gasto?" hint={ruleFilter === "todas" ? "Por regla. Toca un color para ver su detalle." : `Por categoría de ${nice(ruleInfo(ruleFilter).name).toLowerCase()}. Toca un color para ver su detalle.`} />
-          <Panel pad="18px 14px 8px">
-            <Donut key={ruleFilter + monthLabel} segments={donutSegments} centerLabel="Total gastado" format={fmt0} />
+          <div ref={pieRef}><SectionHeader title="¿Cómo se reparte tu gasto?" hint={`${pieHint} Toca un color para ver su detalle.`} /></div>
+          <Panel pad="14px 14px 8px">
+            <div className="flex p-1" style={{ background: "var(--chip)", borderRadius: 999, marginBottom: 12 }}>
+              {[["rule", "Reglas"], ["cat", "Categorías"], ["sub", "Subcategorías"]].filter(([k]) => k !== "rule" || ruleFilter === "todas").map(([k, l]) => (
+                <button key={k} onClick={() => setPieLevel(k)} className="press flex-1" style={{ padding: "8px 0", borderRadius: 999, border: "none", fontWeight: 650, fontSize: T.cap + 1, background: level === k ? "var(--glass-strong)" : "transparent", color: level === k ? "var(--text)" : "var(--muted)", boxShadow: level === k ? "0 4px 14px -8px var(--shadow)" : "none" }}>{l}</button>
+              ))}
+            </div>
+            {level === "sub" && (
+              <div data-noswipe className="flex gap-2 overflow-x-auto no-scrollbar" style={{ margin: "0 -14px 12px", padding: "2px 14px" }}>
+                {catRows.map((g) => <Chip key={g.key} active={subCat && g.key === subCat.key} onClick={() => setPieCat(g.key)} color={shadeOf(g.mainId, catIndex(g))}>{g.name}</Chip>)}
+              </div>
+            )}
+            <Donut key={ruleFilter + monthLabel + level + (level === "sub" && subCat ? subCat.key : "")} segments={donutSegments} centerLabel={level === "sub" && subCat ? `Total ${subCat.name}` : "Total gastado"} format={fmt0} />
           </Panel>
         </>
       )}
@@ -257,9 +286,12 @@ export function StatsScreen({ categories, ruleFilter, setRuleFilter, monthLabel,
                   {items.map(([name, v]) => (
                     <div key={name} className="flex items-center justify-between" style={{ fontSize: T.small, padding: "6px 0" }}>
                       <span style={{ color: name === "Sin subcategoría" ? "var(--muted)" : "var(--text)" }}>{name}</span>
-                      <span className="num" style={{ fontWeight: 600 }}>{fmt0(v)}</span>
+                      <span className="num" style={{ fontWeight: 600 }}>{fmt0(v)} <span style={{ color: "var(--muted)", fontWeight: 500 }}>{g.total > 0 ? Math.round((v / g.total) * 100) : 0}%</span></span>
                     </div>
                   ))}
+                  {items.length > 1 && (
+                    <button onClick={() => { setPieLevel("sub"); setPieCat(g.key); pieRef.current && pieRef.current.scrollIntoView({ behavior: "smooth", block: "start" }); }} className="press" style={{ marginTop: 4, background: "var(--accent-soft)", color: "var(--accent-ink)", border: "none", borderRadius: 999, padding: "7px 12px", fontWeight: 650, fontSize: T.cap }}>Ver {g.name} en el pastel</button>
+                  )}
                 </div>
               )}
             </div>

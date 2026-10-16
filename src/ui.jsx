@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { X, ChevronLeft, ChevronRight, Repeat, Check } from "lucide-react";
-import { fmt, iconFor, colorForIcon, ICON_GROUPS, fmtDayShort, txPath } from "./utils";
+import { fmt, iconFor, colorForIcon, ICON_GROUPS, fmtDayShort, txPath, formatAmountInput, cleanAmountInput } from "./utils";
 import { ACCENT_PRESETS, normHex, hexToHsl, hslToHex, readableOn } from "./theme";
 
 export const ThemeContext = React.createContext(null);
@@ -54,11 +54,46 @@ export function Chip({ children, active, onClick, color, style }) {
   );
 }
 
-export function Field({ label, hint, ...props }) {
+/* Money input with thousands separators that keeps the cursor where you
+   typed. Without this, changing the "1" in 1,500 to a "2" sent the cursor
+   to the end because the commas are re-inserted on every keystroke. */
+export function AmountInput({ value, onValue, inputRef, ...rest }) {
+  const own = useRef(null);
+  const ref = inputRef || own;
+  const pending = useRef(null);
+  const shown = formatAmountInput(value == null ? "" : String(value));
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (pending.current == null || !el || document.activeElement !== el) { pending.current = null; return; }
+    const n = pending.current; // how many digits/points were before the cursor
+    pending.current = null;
+    let pos = 0, seen = 0;
+    while (pos < shown.length && seen < n) { if (shown[pos] !== ",") seen++; pos++; }
+    try { el.setSelectionRange(pos, pos); } catch (e) { /* some input types don't support it */ }
+  });
+  return (
+    <input
+      ref={ref}
+      type="text"
+      inputMode="decimal"
+      autoComplete="off"
+      {...rest}
+      value={shown}
+      onChange={(e) => {
+        const el = e.target;
+        const caret = el.selectionStart == null ? el.value.length : el.selectionStart;
+        pending.current = cleanAmountInput(el.value.slice(0, caret)).length;
+        onValue(cleanAmountInput(el.value));
+      }}
+    />
+  );
+}
+
+export function Field({ label, hint, amount, onAmount, ...props }) {
   return (
     <label className="block" style={{ marginBottom: 14 }}>
       {label && <div style={{ fontSize: T.small, fontWeight: 600, color: "var(--muted)", margin: "0 0 6px 4px" }}>{label}</div>}
-      <input {...props} className="field" />
+      {onAmount ? <AmountInput {...props} value={amount} onValue={onAmount} className="field num" /> : <input {...props} className="field" />}
       {hint && <div style={{ fontSize: T.cap, color: "var(--muted)", margin: "6px 4px 0" }}>{hint}</div>}
     </label>
   );

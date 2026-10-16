@@ -13,20 +13,22 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "favicon.svg"],
+      includeAssets: ["icons/icon-192.png", "icons/icon-512.png", "icons/mark-192.png", "icons/mark-512.png", "icons/apple-touch-icon.png", "favicon.svg"],
       manifest: {
         name: "Finzalu",
         short_name: "Finzalu",
         description: "Finzalu: reparte tu dinero con reglas, controla tus gastos y cumple tus metas de ahorro.",
-        theme_color: "#131B29",
-        background_color: "#131B29",
+        theme_color: "#15111f",
+        background_color: "#15111f",
         display: "standalone",
         orientation: "portrait",
         start_url: "/finzalu/",
         scope: "/finzalu/",
         icons: [
-          { src: "icons/icon-192.png", sizes: "192x192", type: "image/png" },
-          { src: "icons/icon-512.png", sizes: "512x512", type: "image/png" },
+          // "any": just the mark, no square — Android shows it on its launch screen
+          { src: "icons/mark-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "icons/mark-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          // "maskable": full-bleed tile the launcher crops to its own shape
           { src: "icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },

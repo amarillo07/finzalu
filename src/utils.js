@@ -136,7 +136,12 @@ export function formatAmountInput(raw) {
   const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return rest.length ? `${withCommas}.${rest.join("")}` : withCommas;
 }
-export function cleanAmountInput(str) { return str.replace(/,/g, "").replace(/[^0-9.]/g, ""); }
+export function cleanAmountInput(str) {
+  const s = String(str).replace(/[^0-9.]/g, "");
+  const i = s.indexOf(".");
+  if (i < 0) return s;
+  return s.slice(0, i + 1) + s.slice(i + 1).replace(/\./g, "").slice(0, 2);
+}
 
 // Local date (NOT UTC) — toISOString() would jump to "tomorrow" after 6pm in México.
 export function localISO(d) {

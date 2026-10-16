@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import {
   Panel, SectionHeader, Chip, Field, PrimaryBtn, GhostBtn, ProgressBar, EmptyNote, CatIcon, IconPicker,
-  ColorPicker, T,
+  ColorPicker, AmountInput, T,
 } from "./ui";
 import {
   fmt, fmt0, nice, uid, todayISO, periodicAmounts, RULE_PRESETS, formatAmountInput, cleanAmountInput,
@@ -229,8 +229,8 @@ export function GoalDetail({ goal, onCreate, onContribute, onDelete }) {
     return (
       <div>
         <Field label="¿Para qué ahorras?" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Vacaciones" />
-        <Field label="¿Cuánto necesitas?" inputMode="decimal" value={formatAmountInput(targetAmount)} onChange={(e) => setTargetAmount(cleanAmountInput(e.target.value))} placeholder="$0" />
-        <Field label="¿Ya tienes algo ahorrado? (opcional)" inputMode="decimal" value={formatAmountInput(initialSaved)} onChange={(e) => setInitialSaved(cleanAmountInput(e.target.value))} placeholder="$0" />
+        <Field label="¿Cuánto necesitas?" amount={targetAmount} onAmount={setTargetAmount} placeholder="$0" />
+        <Field label="¿Ya tienes algo ahorrado? (opcional)" amount={initialSaved} onAmount={setInitialSaved} placeholder="$0" />
         <Field label="¿Para cuándo? (opcional)" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
         <div style={{ fontSize: T.small, fontWeight: 600, color: "var(--muted)", margin: "0 0 8px 4px" }}>¿Cada cuánto vas a aportar?</div>
         <div className="flex gap-2 flex-wrap" style={{ marginBottom: 16 }}>
@@ -294,7 +294,7 @@ export function GoalDetail({ goal, onCreate, onContribute, onDelete }) {
 
       <div style={{ fontWeight: 650, margin: "20px 4px 8px" }}>Agregar aportación</div>
       <div className="flex gap-2">
-        <input className="field num" inputMode="decimal" value={formatAmountInput(contribAmount)} onChange={(e) => setContribAmount(cleanAmountInput(e.target.value))} placeholder="$0" />
+        <AmountInput className="field num" value={contribAmount} onValue={setContribAmount} placeholder="$0" />
         <button className="press" onClick={() => { if (Number(contribAmount) > 0) { onContribute(goal.id, contribAmount, contribNote); setContribAmount(""); setContribNote(""); } }} style={{ padding: "0 18px", borderRadius: 16, border: "none", background: Number(contribAmount) > 0 ? "var(--accent)" : "var(--chip)", color: Number(contribAmount) > 0 ? "var(--on-accent)" : "var(--muted)", fontWeight: 650 }}>Agregar</button>
       </div>
       <input className="field" value={contribNote} onChange={(e) => setContribNote(e.target.value)} placeholder="Nota (opcional)" style={{ marginTop: 8 }} />
@@ -401,6 +401,7 @@ export function AppearanceEditor({ appearance, setAppearance }) {
 }
 
 export function ProfileScreen({ profile, setProfile, saveNote, appearance, setAppearance }) {
+  const [incomeDraft, setIncomeDraft] = useState(profile.incomeAmount ? String(profile.incomeAmount) : "");
   return (
     <div>
       <ScreenTitle>Perfil y apariencia</ScreenTitle>
@@ -410,7 +411,7 @@ export function ProfileScreen({ profile, setProfile, saveNote, appearance, setAp
       <SectionHeader title="Tus datos" />
       <Panel pad={18}>
         <Field label="Nombre" value={profile.name} onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))} />
-        <Field label="Ingreso esperado" inputMode="decimal" value={formatAmountInput(String(profile.incomeAmount))} onChange={(e) => setProfile((p) => ({ ...p, incomeAmount: Number(cleanAmountInput(e.target.value)) || 0 }))} hint="Lo que sueles recibir. Se usa como guía mientras no registres ingresos en el mes." />
+        <Field label="Ingreso esperado" amount={incomeDraft} onAmount={(v) => { setIncomeDraft(v); setProfile((p) => ({ ...p, incomeAmount: Number(v) || 0 })); }} hint="Lo que sueles recibir. Se usa como guía mientras no registres ingresos en el mes." />
         <div style={{ fontSize: T.small, fontWeight: 600, color: "var(--muted)", margin: "0 0 8px 4px" }}>¿Cada cuánto lo recibes?</div>
         <div className="flex gap-2 flex-wrap">
           {["diaria", "semanal", "quincenal", "mensual"].map((p) => <Chip key={p} active={profile.incomePeriodicity === p} onClick={() => setProfile((pr) => ({ ...pr, incomePeriodicity: p }))}>{p.charAt(0).toUpperCase() + p.slice(1)}</Chip>)}
@@ -520,7 +521,7 @@ export function Onboarding({ onDone, appearance, setAppearance }) {
             <>
               <div className="flex items-baseline gap-2 glass" style={{ padding: "14px 18px", borderRadius: 22 }}>
                 <span style={{ fontSize: T.h1, color: "var(--muted)" }}>$</span>
-                <input value={formatAmountInput(amount)} onChange={(e) => setAmount(cleanAmountInput(e.target.value))} placeholder="0" inputMode="decimal" autoFocus className="num" style={{ fontSize: T.h1 + 4, fontWeight: 700, background: "none", border: "none", outline: "none", width: "100%", color: "var(--text)" }} />
+                <AmountInput value={amount} onValue={setAmount} placeholder="0" autoFocus className="num" style={{ fontSize: T.h1 + 4, fontWeight: 700, background: "none", border: "none", outline: "none", width: "100%", color: "var(--text)" }} />
               </div>
               <div style={{ fontSize: T.small, fontWeight: 600, color: "var(--muted)", margin: "18px 0 8px 4px" }}>¿Cada cuánto lo recibes?</div>
               <div className="flex gap-2 flex-wrap">
